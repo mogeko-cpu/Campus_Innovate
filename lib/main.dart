@@ -1,28 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import 'data/repositories/idea_repository_impl.dart';
-import 'data/sources/idea_data_source.dart';
-import 'ui/controllers/home_controller.dart';
-import 'ui/views/home_view.dart';
+import 'di/app_bindings.dart';
+import 'routes/app_pages.dart';
+import 'routes/app_routes.dart';
 
 void main() {
-  Get.put(
-    IdeaDataSource(),
-  );
-
-  Get.put(
-    IdeaRepositoryImpl(
-      Get.find<IdeaDataSource>(),
-    ),
-  );
-
-  Get.put(
-    HomeController(
-      Get.find<IdeaRepositoryImpl>(),
-    ),
-  );
-
   runApp(
     const CampusInnovateApp(),
   );
@@ -35,13 +18,18 @@ class CampusInnovateApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return GetMaterialApp(
       debugShowCheckedModeBanner: false,
+
       title: 'Campus Innovate',
+
+      initialBinding: AppBindings(),
+
+      initialRoute: AppRoutes.home,
+
+      getPages: AppPages.pages,
 
       theme: ThemeData(
         useMaterial3: true,
       ),
-
-      home: const HomeView(),
     );
   }
 }

@@ -1,4 +1,4 @@
-class Idea {
+class Listing {
   final int id;
   final String title;
   final String description;
@@ -6,7 +6,7 @@ class Idea {
   final String creator;
   final int collaboratorsNeeded;
 
-  Idea({
+  const Listing({
     required this.id,
     required this.title,
     required this.description,
