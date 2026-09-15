@@ -1,33 +1,26 @@
 import '../../features/listings/domain/models/listing.dart';
+import '../../features/listings/domain/models/join_request.dart';
 
 class MockData {
-  static const List<Listing> featuredListings = [
-    Listing(
+  static final List<Listing> listings = [
+    const Listing(
       id: 1,
       title: 'Campus App',
       description:
-          'Una aplicación para mejorar la experiencia de los estudiantes.',
+          'Aplicación para mejorar la experiencia de los estudiantes dentro del campus.',
       category: 'Tecnología',
-      creator: 'Sebastián González',
-      collaboratorsNeeded: 2,
-    ),
-    Listing(
-      id: 2,
-      title: 'EcoCampus',
-      description:
-          'Proyecto para promover prácticas sostenibles dentro del campus.',
-      category: 'Sostenibilidad',
-      creator: 'Kevin Ruiz',
-      collaboratorsNeeded: 3,
-    ),
-    Listing(
-      id: 3,
-      title: 'Mentoría Universitaria',
-      description:
-          'Plataforma para conectar estudiantes con mentores.',
-      category: 'Educación',
-      creator: 'Alejandro Santiago',
-      collaboratorsNeeded: 1,
+      creatorId: 'user_2',
+      creatorName: 'Sebastián González',
+      maxMembers: 4,
+      requiredSkills: [
+        'Flutter',
+        'Diseño UI',
+      ],
+      memberIds: [
+        'user_2',
+      ],
     ),
   ];
+
+  static final List<JoinRequest> requests = [];
 }
