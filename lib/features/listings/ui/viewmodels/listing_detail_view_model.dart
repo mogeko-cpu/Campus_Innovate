@@ -1,79 +1,63 @@
 import 'package:get/get.dart';
 
-import '../../../../core/data/mock_session.dart';
+import '../../../../core/i_session_service.dart';
 import '../../domain/models/join_request.dart';
 import '../../domain/models/listing.dart';
 import '../../domain/repositories/i_listing_repository.dart';
 
 class ListingDetailViewModel extends GetxController {
-  final IListingRepository repository;
+  final IListingRepository _repository;
+  final ISessionService _session;
 
-  ListingDetailViewModel(this.repository);
+  ListingDetailViewModel(this._repository, this._session);
 
   final Rxn<Listing> listing = Rxn<Listing>();
-
+  final Rxn<JoinRequest> myRequest = Rxn<JoinRequest>();
   final RxBool isLoading = false.obs;
+  final RxnString error = RxnString();
 
-  String? message;
-  String? error;
+  late final int listingId;
 
-  Future<void> loadListing(int id) async {
+  @override
+  void onInit() {
+    super.onInit();
+    listingId = int.tryParse(Get.parameters['id'] ?? '') ?? -1;
+    load();
+  }
+
+  Future<void> load() async {
     try {
       isLoading.value = true;
+      error.value = null;
 
-      final result = await repository.getListingById(id);
+      final found = await _repository.getListingById(listingId);
 
-      listing.value = result;
-    } catch (e) {
-      error = 'No se pudo cargar el proyecto';
+      if (found == null) {
+        error.value = 'Proyecto no encontrado';
+        return;
+      }
+
+      listing.value = found;
+      myRequest.value = await _repository.getMyRequestForListing(
+        listingId: listingId,
+        applicantId: _session.currentUserId,
+      );
+    } catch (_) {
+      error.value = 'No se pudo cargar el proyecto';
     } finally {
       isLoading.value = false;
     }
   }
 
-  bool get isCreator {
-    return listing.value?.creatorId ==
-        MockSession.currentUserId;
-  }
+  bool get isCreator => listing.value?.creatorId == _session.currentUserId;
 
-  bool get isMember {
-    return listing.value?.memberIds.contains(
-          MockSession.currentUserId,
-        ) ??
-        false;
-  }
+  bool get isMember =>
+      listing.value?.memberIds.contains(_session.currentUserId) ?? false;
 
-  Future<bool> sendJoinRequest({
-    required String motivation,
-    required String skills,
-    required String availability,
-  }) async {
-    try {
-      if (listing.value == null) {
-        error = 'Proyecto no encontrado';
-        return false;
-      }
-
-      final request = JoinRequest(
-        id: DateTime.now().millisecondsSinceEpoch,
-        listingId: listing.value!.id,
-        applicantId: MockSession.currentUserId,
-        applicantName: MockSession.currentUserName,
-        motivation: motivation,
-        skills: skills,
-        availability: availability,
-        status: 'pending',
-      );
-
-      await repository.createJoinRequest(request);
-
-      message = 'Solicitud enviada correctamente';
-
-      return true;
-    } catch (e) {
-      error = 'No se pudo enviar la solicitud';
-
-      return false;
-    }
-  }
+  bool get canRequestToJoin =>
+      listing.value != null &&
+      !isCreator &&
+      !isMember &&
+      !listing.value!.isFull &&
+      myRequest.value == null;
 }

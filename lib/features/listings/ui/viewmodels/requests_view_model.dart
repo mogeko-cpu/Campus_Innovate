@@ -1,67 +1,55 @@
 import 'package:get/get.dart';
 
 import '../../domain/models/join_request.dart';
+import '../../domain/models/join_request_status.dart';
 import '../../domain/repositories/i_listing_repository.dart';
 
+/// Backs the creator-facing request inbox. Not routed yet.
 class RequestsViewModel extends GetxController {
-  final IListingRepository repository;
+  final IListingRepository _repository;
 
-  RequestsViewModel(this.repository);
+  RequestsViewModel(this._repository);
 
   final RxList<JoinRequest> requests = <JoinRequest>[].obs;
+  final RxBool isLoading = false.obs;
+  final RxnString error = RxnString();
 
-  String? message;
-  String? error;
-
-  Future<void> loadRequests(int listingId) async {
+  Future<void> load(int listingId) async {
     try {
-      final result = await repository.getRequestsForListing(
-        listingId,
-      );
+      isLoading.value = true;
+      error.value = null;
 
-      requests.assignAll(result);
-    } catch (e) {
-      error = 'No se pudieron cargar las solicitudes';
+      requests.assignAll(await _repository.getRequestsForListing(listingId));
+    } catch (_) {
+      error.value = 'No se pudieron cargar las solicitudes';
+    } finally {
+      isLoading.value = false;
     }
   }
 
-  Future<void> acceptRequest(int requestId) async {
+  Future<void> accept(int requestId) =>
+      _resolve(requestId, JoinRequestStatus.accepted);
+
+  Future<void> reject(int requestId) =>
+      _resolve(requestId, JoinRequestStatus.rejected);
+
+  Future<void> _resolve(int requestId, JoinRequestStatus status) async {
     try {
-      await repository.acceptJoinRequest(requestId);
+      error.value = null;
 
-      message = 'Solicitud aceptada';
+      if (status == JoinRequestStatus.accepted) {
+        await _repository.acceptJoinRequest(requestId);
+      } else {
+        await _repository.rejectJoinRequest(requestId);
+      }
 
-      final request = requests.firstWhere(
-        (item) => item.id == requestId,
-      );
+      final index = requests.indexWhere((request) => request.id == requestId);
 
-      final index = requests.indexOf(request);
-
-      requests[index] = request.copyWith(
-        status: 'accepted',
-      );
-    } catch (e) {
-      error = 'No se pudo aceptar la solicitud';
-    }
-  }
-
-  Future<void> rejectRequest(int requestId) async {
-    try {
-      await repository.rejectJoinRequest(requestId);
-
-      message = 'Solicitud rechazada';
-
-      final request = requests.firstWhere(
-        (item) => item.id == requestId,
-      );
-
-      final index = requests.indexOf(request);
-
-      requests[index] = request.copyWith(
-        status: 'rejected',
-      );
-    } catch (e) {
-      error = 'No se pudo rechazar la solicitud';
+      if (index != -1) {
+        requests[index] = requests[index].copyWith(status: status);
+      }
+    } catch (_) {
+      error.value = 'No se pudo actualizar la solicitud';
     }
   }
 }

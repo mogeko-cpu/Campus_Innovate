@@ -1,39 +1,42 @@
 import 'package:get/get.dart';
 
+import '../../../../core/i_session_service.dart';
 import '../../../listings/domain/models/listing.dart';
 import '../../../listings/domain/repositories/i_listing_repository.dart';
 
 class HomeViewModel extends GetxController {
-  final IListingRepository listingRepository;
+  final IListingRepository _repository;
+  final ISessionService _session;
 
-  HomeViewModel(this.listingRepository);
+  HomeViewModel(this._repository, this._session);
 
   final RxList<Listing> featuredListings = <Listing>[].obs;
-
+  final RxList<Listing> myListings = <Listing>[].obs;
   final RxBool isLoading = false.obs;
+  final RxnString error = RxnString();
 
-  String? message;
-  String? error;
+  String get userName => _session.currentUserName;
+
+  String get firstName => userName.split(' ').first;
 
   @override
   void onInit() {
     super.onInit();
-    loadFeaturedListings();
+    load();
   }
 
-  Future<void> loadFeaturedListings() async {
+  Future<void> load() async {
     try {
       isLoading.value = true;
-      error = null;
+      error.value = null;
 
-      final listings =
-          await listingRepository.getFeaturedListings();
+      final featured = await _repository.getFeaturedListings();
+      final mine = await _repository.getJoinedListings(_session.currentUserId);
 
-      featuredListings.assignAll(listings);
-
-      message = 'Ideas destacadas cargadas correctamente';
-    } catch (e) {
-      error = 'No se pudieron cargar las ideas';
+      featuredListings.assignAll(featured);
+      myListings.assignAll(mine);
+    } catch (_) {
+      error.value = 'No se pudieron cargar las ideas';
     } finally {
       isLoading.value = false;
     }

@@ -1,44 +1,58 @@
 import 'package:get/get.dart';
 
-import '../../../../core/data/mock_session.dart';
+import '../../../../core/i_session_service.dart';
 import '../../domain/models/listing.dart';
 import '../../domain/repositories/i_listing_repository.dart';
 
 class ListingsViewModel extends GetxController {
-  final IListingRepository repository;
+  final IListingRepository _repository;
+  final ISessionService _session;
 
-  ListingsViewModel(this.repository);
+  ListingsViewModel(this._repository, this._session);
 
-  final RxList<Listing> listings = <Listing>[].obs;
+  final RxList<Listing> _all = <Listing>[].obs;
   final RxBool isLoading = false.obs;
+  final RxnString error = RxnString();
+  final RxnString selectedCategory = RxnString();
+  final RxString query = ''.obs;
 
-  String? message;
-  String? error;
+  List<Listing> get listings {
+    final category = selectedCategory.value;
+    final text = query.value.trim().toLowerCase();
+
+    return _all.where((listing) {
+      final matchesCategory = category == null || listing.category == category;
+      final matchesText = text.isEmpty ||
+          listing.title.toLowerCase().contains(text) ||
+          listing.description.toLowerCase().contains(text);
+
+      return matchesCategory && matchesText;
+    }).toList();
+  }
 
   @override
   void onInit() {
     super.onInit();
-    loadListings();
+    load();
   }
 
-  Future<void> loadListings() async {
+  Future<void> load() async {
     try {
       isLoading.value = true;
-      error = null;
+      error.value = null;
 
-      final result = await repository.getListings();
-
-      listings.assignAll(result);
-    } catch (e) {
-      error = 'No se pudieron cargar los proyectos';
+      _all.assignAll(await _repository.getListings());
+    } catch (_) {
+      error.value = 'No se pudieron cargar los proyectos';
     } finally {
       isLoading.value = false;
     }
   }
 
-  bool isMember(Listing listing) {
-    return listing.memberIds.contains(
-      MockSession.currentUserId,
-    );
-  }
+  void filterByCategory(String? category) => selectedCategory.value = category;
+
+  void search(String text) => query.value = text;
+
+  bool isMember(Listing listing) =>
+      listing.memberIds.contains(_session.currentUserId);
 }
