@@ -21,6 +21,10 @@ class Listing {
     required this.memberIds,
   });
 
+  int get availableSlots => maxMembers - memberIds.length;
+
+  bool get isFull => availableSlots <= 0;
+
   Listing copyWith({
     int? id,
     String? title,

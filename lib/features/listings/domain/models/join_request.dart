@@ -1,3 +1,5 @@
+import 'join_request_status.dart';
+
 class JoinRequest {
   final int id;
   final int listingId;
@@ -6,7 +8,7 @@ class JoinRequest {
   final String motivation;
   final String skills;
   final String availability;
-  final String status;
+  final JoinRequestStatus status;
 
   const JoinRequest({
     required this.id,
@@ -27,7 +29,7 @@ class JoinRequest {
     String? motivation,
     String? skills,
     String? availability,
-    String? status,
+    JoinRequestStatus? status,
   }) {
     return JoinRequest(
       id: id ?? this.id,
