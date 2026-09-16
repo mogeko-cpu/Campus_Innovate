@@ -1,5 +1,5 @@
-import 'package:f_clean_template/features/auth/domain/models/authentication_user.dart';
-import 'package:f_clean_template/features/auth/domain/repositories/i_auth_repository.dart';
+import 'package:campus_innovate/features/auth/domain/models/authentication_user.dart';
+import 'package:campus_innovate/features/auth/domain/repositories/i_auth_repository.dart';
 import 'package:get/get.dart';
 
 import 'package:loggy/loggy.dart';

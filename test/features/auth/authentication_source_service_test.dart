@@ -1,6 +1,6 @@
-import 'package:f_clean_template/core/i_local_preferences.dart';
-import 'package:f_clean_template/features/auth/data/datasources/remote/authentication_source_service.dart';
-import 'package:f_clean_template/features/auth/domain/models/authentication_user.dart';
+import 'package:campus_innovate/core/i_local_preferences.dart';
+import 'package:campus_innovate/features/auth/data/datasources/remote/authentication_source_service.dart';
+import 'package:campus_innovate/features/auth/domain/models/authentication_user.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
