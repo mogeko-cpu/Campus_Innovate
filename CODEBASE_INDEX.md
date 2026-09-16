@@ -2,108 +2,87 @@
 
 ## Overview
 
-`f_clean_template` is a Flutter application organized by feature using a pragmatic Clean Architecture / MVVM structure. GetX provides dependency injection, navigation, and reactive state. The implemented features are authentication and product CRUD.
+`campus_innovate` is a Flutter application for publishing university projects and
+joining other students' teams. It follows the feature-first Clean Architecture /
+MVVM layout of `f_clean_template`: every feature splits into `domain`, `data`,
+and `ui`, with GetX providing dependency injection, named routing, and reactive
+state.
+
+Layer chain, top to bottom:
+
+```text
+View (GetView)
+  -> ViewModel (GetxController)
+    -> IListingRepository
+      -> ListingRepository
+        -> IListingSource
+          -> LocalListingSource (active, in-memory)
+```
+
+Views never reach past the repository interface, and view models receive both
+the repository and `ISessionService` through constructor injection.
 
 ## Runtime entry and composition
 
-- [`lib/main.dart`](lib/main.dart) — Application entry point. Initializes logging, delegates feature wiring to `registerAuth` and `registerProduct`, and starts `MyApp`.
-- [`lib/central.dart`](lib/central.dart) — Root authentication gate. Reactively displays `LoginPage` or `ListProductPage` based on `AuthenticationController.isLogged`.
-- [`lib/core/app_theme.dart`](lib/core/app_theme.dart) — Light and dark Material themes built with FlexColorScheme.
-- [`lib/core/error_message.dart`](lib/core/error_message.dart) — Converts authentication exceptions into presentation-safe error messages.
-- [`lib/core/i_local_preferences.dart`](lib/core/i_local_preferences.dart) — Storage contract, implemented by shared web and encrypted native adapters; the native adapter falls back to shared preferences only when its plugin is unavailable.
+- [`lib/main.dart`](lib/main.dart) — Entry point. Builds `GetMaterialApp` with `AppBindings`, the route table, and the light/dark themes.
+- [`lib/di/app_bindings.dart`](lib/di/app_bindings.dart) — Global binding. Registers the session service, listing source, and listing repository as permanent singletons so in-memory data survives navigation.
+- [`lib/routes/app_routes.dart`](lib/routes/app_routes.dart) — Route name constants plus `detailOf(id)` / `joinOf(id)` builders for parameterized routes.
+- [`lib/routes/app_pages.dart`](lib/routes/app_pages.dart) — Maps each route to its page and per-route binding.
+- [`lib/core/app_theme.dart`](lib/core/app_theme.dart) — Campus Innovate palette: academic crimson primary, navy secondary, muted gold tertiary, built with FlexColorScheme.
+- [`lib/core/i_session_service.dart`](lib/core/i_session_service.dart) — Identity of the current user, implemented by [`MockSessionService`](lib/core/mock_session_service.dart) until authentication is wired to the shell.
+- [`lib/core/i_local_preferences.dart`](lib/core/i_local_preferences.dart) — Storage contract with shared and encrypted adapters.
 
-Dependency graph:
+## Listings feature
 
-```text
-AuthenticationController
-  -> IAuthRepository
-    -> AuthRepository
-      -> IAuthenticationSource
-        -> AuthenticationSourceService
+The core feature: publish a project, browse open projects, request to join one.
 
-ProductController
-  -> IProductRepository
-    -> ProductRepository
-      -> IProductSource
-        -> LocalProductSource (active)
-        -> RemoteProductSource (available stub)
-```
+### Domain
+
+- [`domain/models/listing.dart`](lib/features/listings/domain/models/listing.dart) — `Listing` entity. `availableSlots` and `isFull` derive team capacity.
+- [`domain/models/join_request.dart`](lib/features/listings/domain/models/join_request.dart) — A student's application to a listing.
+- [`domain/models/join_request_status.dart`](lib/features/listings/domain/models/join_request_status.dart) — `pending` / `accepted` / `rejected` with Spanish labels.
+- [`domain/models/listing_category.dart`](lib/features/listings/domain/models/listing_category.dart) — The categories a project can be published under.
+- [`domain/repositories/i_listing_repository.dart`](lib/features/listings/domain/repositories/i_listing_repository.dart) — Everything the UI is allowed to ask for.
+
+### Data
+
+- [`data/datasources/i_listing_source.dart`](lib/features/listings/data/datasources/i_listing_source.dart) — Storage contract, shared by the in-memory source and the future HTTP one.
+- [`data/datasources/local/local_listing_source.dart`](lib/features/listings/data/datasources/local/local_listing_source.dart) — In-memory store seeded with three demo projects. State resets on restart.
+- [`data/repositories/listing_repository.dart`](lib/features/listings/data/repositories/listing_repository.dart) — Delegates to the source and owns the rules the source does not: what counts as featured, and that accepting a request also adds the applicant as a member.
+
+### UI
+
+- [`ui/viewmodels/listings_view_model.dart`](lib/features/listings/ui/viewmodels/listings_view_model.dart) — Listing catalog plus category and free-text filtering.
+- [`ui/viewmodels/create_listing_view_model.dart`](lib/features/listings/ui/viewmodels/create_listing_view_model.dart) — Category, team size, and skill-tag state for the publish form.
+- [`ui/viewmodels/listing_detail_view_model.dart`](lib/features/listings/ui/viewmodels/listing_detail_view_model.dart) — Loads one listing by route parameter and decides whether the viewer may apply.
+- [`ui/viewmodels/join_request_view_model.dart`](lib/features/listings/ui/viewmodels/join_request_view_model.dart) — Submits the application form.
+- [`ui/viewmodels/requests_view_model.dart`](lib/features/listings/ui/viewmodels/requests_view_model.dart) — Creator-facing request inbox. Written but not routed yet.
+- [`ui/views/`](lib/features/listings/ui/views) — `listings_page`, `create_listing_page`, `listing_detail_page`, `join_request_page`.
+- [`ui/widgets/listing_card.dart`](lib/features/listings/ui/widgets/listing_card.dart) — Shared project card, also used by home.
+- [`listings_dependencies.dart`](lib/features/listings/listings_dependencies.dart) — One binding per listings route.
+
+## Home feature
+
+- [`ui/viewmodels/home_view_model.dart`](lib/features/home/ui/viewmodels/home_view_model.dart) — Featured listings and the projects the current user belongs to.
+- [`ui/views/home_page.dart`](lib/features/home/ui/views/home_page.dart) — Greeting header, the two primary actions, featured projects, and my projects. Reloads whenever the user returns from a pushed route.
+- [`ui/widgets/action_card.dart`](lib/features/home/ui/widgets/action_card.dart) — The filled/outlined primary action tile.
+- [`home_dependencies.dart`](lib/features/home/home_dependencies.dart) — `HomeBinding`.
 
 ## Authentication feature
 
-### Domain
+Carried over from the template and kept for later. Login and signup pages,
+controller, repository, and a local multi-user source all work, but no route
+points at them yet, so the app opens straight onto home.
 
-- [`lib/features/auth/domain/models/authentication_user.dart`](lib/features/auth/domain/models/authentication_user.dart) — `AuthenticationUser` entity plus JSON conversion.
-- [`lib/features/auth/domain/repositories/i_auth_repository.dart`](lib/features/auth/domain/repositories/i_auth_repository.dart) — Authentication operations exposed to the UI layer.
+## Tests
 
-### Data
-
-- [`lib/features/auth/data/datasources/remote/i_authentication_source.dart`](lib/features/auth/data/datasources/remote/i_authentication_source.dart) — Full authentication data-source contract.
-- [`lib/features/auth/data/datasources/remote/authentication_source_service.dart`](lib/features/auth/data/datasources/remote/authentication_source_service.dart) — Local multi-user authentication implementation: persists accounts, verifies credentials, and restores the session for a valid stored account.
-- [`lib/features/auth/data/repositories/auth_repository.dart`](lib/features/auth/data/repositories/auth_repository.dart) — Adapter from the domain repository contract to the authentication source.
-- [`lib/features/auth/auth_dependencies.dart`](lib/features/auth/auth_dependencies.dart) — Registers the authentication source, repository, and controller with GetX.
-
-### UI
-
-- [`lib/features/auth/ui/viewmodels/authentication_controller.dart`](lib/features/auth/ui/viewmodels/authentication_controller.dart) — Reactive logged/loading state, credential validation, and login/signup/logout orchestration.
-- [`lib/features/auth/ui/views/login_page.dart`](lib/features/auth/ui/views/login_page.dart) — Login form and navigation to signup.
-- [`lib/features/auth/ui/views/signup_page.dart`](lib/features/auth/ui/views/signup_page.dart) — Account creation form.
-
-Authentication flow:
-
-```text
-LoginPage -> AuthenticationController.login()
-          -> AuthRepository.login()
-          -> AuthenticationSourceService.login()
-          -> isLogged = true
-          -> Central rebuilds with ListProductPage
-```
-
-## Product feature
-
-### Domain
-
-- [`lib/features/product/domain/models/product.dart`](lib/features/product/domain/models/product.dart) — Mutable `Product` entity and JSON conversion.
-- [`lib/features/product/domain/repositories/i_product_repository.dart`](lib/features/product/domain/repositories/i_product_repository.dart) — Product CRUD contract.
-
-### Data
-
-- [`lib/features/product/data/datasources/i_remote_product_source.dart`](lib/features/product/data/datasources/i_remote_product_source.dart) — Product data-source contract. Despite its filename, it is shared by local and remote implementations.
-- [`lib/features/product/data/datasources/local/local_product_source.dart`](lib/features/product/data/datasources/local/local_product_source.dart) — Active JSON-backed local CRUD store; product data persists across app restarts.
-- [`lib/features/product/data/datasources/remote_product_source.dart`](lib/features/product/data/datasources/remote_product_source.dart) — Remote API placeholder; no HTTP requests are implemented yet.
-- [`lib/features/product/data/repositories/product_repository.dart`](lib/features/product/data/repositories/product_repository.dart) — Pass-through adapter from domain operations to the selected product source.
-- [`lib/features/product/product_dependencies.dart`](lib/features/product/product_dependencies.dart) — Registers the active local product source, repository, and controller with GetX.
-
-### UI
-
-- [`lib/features/product/ui/viewmodels/product_controller.dart`](lib/features/product/ui/viewmodels/product_controller.dart) — Owns the reactive product list/loading state and refreshes after mutations.
-- [`lib/features/product/ui/views/list_product_page.dart`](lib/features/product/ui/views/list_product_page.dart) — Product list, pull-to-refresh, swipe deletion, delete-all, logout, and add/edit navigation.
-- [`lib/features/product/ui/views/add_product_page.dart`](lib/features/product/ui/views/add_product_page.dart) — Product creation form.
-- [`lib/features/product/ui/views/edit_product_page.dart`](lib/features/product/ui/views/edit_product_page.dart) — Product editing form; receives a product through GetX navigation arguments.
-
-CRUD flow:
-
-```text
-Product view -> ProductController
-             -> ProductRepository
-             -> LocalProductSource
-             -> ProductController.getProducts()
-             -> reactive list rebuild
-```
-
-## Platform and project files
-
-- [`pubspec.yaml`](pubspec.yaml) — Dart/Flutter constraints and dependencies (`get`, `http`, `loggy`, `shared_preferences`, `flex_color_scheme`).
-- [`analysis_options.yaml`](analysis_options.yaml) — Dart analyzer and lint configuration.
-- [`android/`](android/) — Android runner and Gradle configuration.
-- [`ios/`](ios/) — iOS runner and Xcode/CocoaPods configuration.
-- [`web/`](web/) — Flutter web bootstrap, manifest, and icons.
-- [`test/widget_test.dart`](test/widget_test.dart) — Default counter-template test; it does not match the current application behavior.
+- [`test/features/listings/listing_flows_test.dart`](test/features/listings/listing_flows_test.dart) — Drives the real app through home, publishing a project, and requesting to join one.
+- [`test/features/auth/authentication_source_service_test.dart`](test/features/auth/authentication_source_service_test.dart) — Account storage and credential checks.
 
 ## Current implementation boundaries
 
-- Authentication and the remote product source do not communicate with a backend. Local authentication is for demos only and must be replaced with a backend before production.
-- Authentication and products use local storage; replace the auth session marker with secure backend tokens when a real backend is connected.
-- There is no route table; navigation uses widget-based GetX calls.
-- There are no use-case classes by design: controllers call repository interfaces directly.
-- Automated coverage is effectively absent because the remaining widget test targets the original Flutter counter template.
+- No backend. `LocalListingSource` holds everything in memory and resets on restart.
+- The session is a fixed mock user; authentication exists but is not wired into the app shell.
+- Accepting and rejecting join requests works at the repository level, but no screen exposes it yet.
+- The "Proyectos" and "Perfil" tabs of the bottom navigation bar are inert.
+- `_template_removed/` holds the template's product feature and the old mock files, kept until the team confirms they are no longer needed.
