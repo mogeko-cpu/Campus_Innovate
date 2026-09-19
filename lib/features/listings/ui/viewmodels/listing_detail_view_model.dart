@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 
+import '../../../../core/error_message.dart';
 import '../../../../core/i_session_service.dart';
 import '../../domain/models/join_request.dart';
 import '../../domain/models/listing.dart';
@@ -16,12 +17,14 @@ class ListingDetailViewModel extends GetxController {
   final RxBool isLoading = false.obs;
   final RxnString error = RxnString();
 
-  late final int listingId;
+  /// The `_id` of the project, straight out of the route. Not parsed: it is a
+  /// UUID, and the source treats anything that is not one as "not found".
+  late final String listingId;
 
   @override
   void onInit() {
     super.onInit();
-    listingId = int.tryParse(Get.parameters['id'] ?? '') ?? -1;
+    listingId = Get.parameters['id'] ?? '';
     load();
   }
 
@@ -42,8 +45,11 @@ class ListingDetailViewModel extends GetxController {
         listingId: listingId,
         applicantId: _session.currentUserId,
       );
-    } catch (_) {
-      error.value = 'No se pudo cargar el proyecto';
+    } catch (failure) {
+      error.value = errorMessage(
+        failure,
+        fallback: 'No se pudo cargar el proyecto',
+      );
     } finally {
       isLoading.value = false;
     }

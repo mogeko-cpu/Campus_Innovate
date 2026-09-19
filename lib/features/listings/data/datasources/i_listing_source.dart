@@ -4,22 +4,31 @@ import '../../domain/models/listing.dart';
 
 /// Storage contract for listings and join requests.
 ///
-/// Shared by the in-memory implementation used today and by the HTTP
-/// implementation that will replace it once the backend exists.
+/// Implemented against ROBLE by `RobleListingSource`, which the app uses, and
+/// in memory by the double the widget tests run on.
+///
+/// Ids are the `_id` UUIDs of the rows, as strings: whoever creates a row gets
+/// its id back from [createListing] / [createJoinRequest] and only then can
+/// point at it.
 abstract class IListingSource {
   Future<List<Listing>> getListings();
 
-  Future<Listing?> getListingById(int id);
+  Future<Listing?> getListingById(String id);
 
+  /// Stores [listing] — which arrives without an id — and returns it with the
+  /// id the database assigned.
   Future<Listing> createListing(Listing listing);
 
   Future<JoinRequest> createJoinRequest(JoinRequest request);
 
-  Future<List<JoinRequest>> getRequestsForListing(int listingId);
+  Future<List<JoinRequest>> getRequestsForListing(String listingId);
 
-  Future<JoinRequest?> getRequestById(int id);
+  Future<JoinRequest?> getRequestById(String id);
 
-  Future<void> updateRequestStatus(int requestId, JoinRequestStatus status);
+  Future<void> updateRequestStatus(String requestId, JoinRequestStatus status);
 
-  Future<void> addMember({required int listingId, required String userId});
+  /// Adds [userId] to the members of [listingId].
+  ///
+  /// Idempotent: adding someone who is already a member is not an error.
+  Future<void> addMember({required String listingId, required String userId});
 }

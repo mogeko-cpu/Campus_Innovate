@@ -1,8 +1,11 @@
 import 'package:campus_innovate/features/home/ui/widgets/action_card.dart';
 import 'package:campus_innovate/main.dart';
+import 'package:campus_innovate/routes/app_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+
+import '../../support/test_bindings.dart';
 
 void main() {
   tearDown(Get.reset);
@@ -12,7 +15,14 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(const CampusInnovateApp());
+    // Straight to home with the doubles installed: the app's own entry point now
+    // starts at login and reads the session from ROBLE.
+    await tester.pumpWidget(
+      CampusInnovateApp(
+        initialBinding: TestBindings(),
+        initialRoute: AppRoutes.home,
+      ),
+    );
     await tester.pumpAndSettle();
   }
 

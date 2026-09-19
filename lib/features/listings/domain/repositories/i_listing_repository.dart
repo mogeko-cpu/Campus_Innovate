@@ -6,22 +6,22 @@ abstract class IListingRepository {
 
   Future<List<Listing>> getFeaturedListings();
 
-  Future<Listing?> getListingById(int id);
+  Future<Listing?> getListingById(String id);
 
   Future<Listing> createListing(Listing listing);
 
   Future<JoinRequest> createJoinRequest(JoinRequest request);
 
-  Future<List<JoinRequest>> getRequestsForListing(int listingId);
+  Future<List<JoinRequest>> getRequestsForListing(String listingId);
 
   Future<JoinRequest?> getMyRequestForListing({
-    required int listingId,
+    required String listingId,
     required String applicantId,
   });
 
-  Future<void> acceptJoinRequest(int requestId);
+  Future<void> acceptJoinRequest(String requestId);
 
-  Future<void> rejectJoinRequest(int requestId);
+  Future<void> rejectJoinRequest(String requestId);
 
   Future<List<Listing>> getMyListings(String userId);
 

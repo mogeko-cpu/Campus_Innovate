@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../../routes/app_routes.dart';
+import '../../../auth/ui/viewmodels/authentication_controller.dart';
 import '../../../listings/ui/widgets/listing_card.dart';
 import '../viewmodels/home_view_model.dart';
 import '../widgets/action_card.dart';
@@ -16,6 +17,37 @@ class HomePage extends GetView<HomeViewModel> {
     await controller.load();
   }
 
+  /// Ends the session and goes back to login.
+  ///
+  /// Confirmed first because signing in again costs a request against a limit of
+  /// 10 logins per 15 minutes shared by everyone on the same network — an
+  /// accidental tap is not free here.
+  Future<void> _confirmLogOut() async {
+    final confirmed = await Get.dialog<bool>(
+      AlertDialog(
+        title: const Text('¿Cerrar sesión?'),
+        content: const Text(
+          'Tendrás que volver a escribir tu correo y contraseña para entrar.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Get.back(result: true),
+            child: const Text('Cerrar sesión'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    await Get.find<AuthenticationController>().logOut();
+    await Get.offAllNamed(AppRoutes.login);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -28,7 +60,10 @@ class HomePage extends GetView<HomeViewModel> {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
               children: [
-                _Greeting(name: controller.firstName),
+                _Greeting(
+                  name: controller.firstName,
+                  onLogOut: _confirmLogOut,
+                ),
                 const SizedBox(height: 24),
                 IntrinsicHeight(
                   child: Row(
@@ -134,8 +169,9 @@ class HomePage extends GetView<HomeViewModel> {
 
 class _Greeting extends StatelessWidget {
   final String name;
+  final Future<void> Function() onLogOut;
 
-  const _Greeting({required this.name});
+  const _Greeting({required this.name, required this.onLogOut});
 
   @override
   Widget build(BuildContext context) {
@@ -159,13 +195,21 @@ class _Greeting extends StatelessWidget {
             children: [
               Icon(Icons.school_outlined, color: colors.onPrimary, size: 20),
               const SizedBox(width: 8),
-              Text(
-                'CAMPUS INNOVATE',
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: colors.onPrimary,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.6,
+              Expanded(
+                child: Text(
+                  'CAMPUS INNOVATE',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: colors.onPrimary,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.6,
+                  ),
                 ),
+              ),
+              IconButton(
+                onPressed: onLogOut,
+                tooltip: 'Cerrar sesión',
+                visualDensity: VisualDensity.compact,
+                icon: Icon(Icons.logout, color: colors.onPrimary, size: 20),
               ),
             ],
           ),

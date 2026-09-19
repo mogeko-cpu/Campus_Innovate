@@ -16,7 +16,8 @@ View (GetView)
     -> IListingRepository
       -> ListingRepository
         -> IListingSource
-          -> LocalListingSource (active, in-memory)
+          -> RobleListingSource (active)
+            -> RobleClient -> ROBLE REST API
 ```
 
 Views never reach past the repository interface, and view models receive both
@@ -24,13 +25,28 @@ the repository and `ISessionService` through constructor injection.
 
 ## Runtime entry and composition
 
-- [`lib/main.dart`](lib/main.dart) — Entry point. Builds `GetMaterialApp` with `AppBindings`, the route table, and the light/dark themes.
-- [`lib/di/app_bindings.dart`](lib/di/app_bindings.dart) — Global binding. Registers the session service, listing source, and listing repository as permanent singletons so in-memory data survives navigation.
+- [`lib/main.dart`](lib/main.dart) — Entry point. Async: sets up Loggy, awaits `AppBindings.boot()`, then builds `GetMaterialApp`. `initialBinding` and `initialRoute` are parameters, so the tests install their own doubles.
+- [`lib/di/app_bindings.dart`](lib/di/app_bindings.dart) — Composition root. `boot()` builds preferences → session → client → auth source and restores the stored session, which decides `initialRoute`: home with a session, login without. `dependencies()` registers everything as permanent singletons.
 - [`lib/routes/app_routes.dart`](lib/routes/app_routes.dart) — Route name constants plus `detailOf(id)` / `joinOf(id)` builders for parameterized routes.
 - [`lib/routes/app_pages.dart`](lib/routes/app_pages.dart) — Maps each route to its page and per-route binding.
 - [`lib/core/app_theme.dart`](lib/core/app_theme.dart) — Campus Innovate palette: academic crimson primary, navy secondary, muted gold tertiary, built with FlexColorScheme.
-- [`lib/core/i_session_service.dart`](lib/core/i_session_service.dart) — Identity of the current user, implemented by [`MockSessionService`](lib/core/mock_session_service.dart) until authentication is wired to the shell.
-- [`lib/core/i_local_preferences.dart`](lib/core/i_local_preferences.dart) — Storage contract with shared and encrypted adapters.
+- [`lib/core/i_session_service.dart`](lib/core/i_session_service.dart) — Identity of the current user, implemented by [`RobleSessionService`](lib/core/roble/roble_session_service.dart) over the signed-in ROBLE account.
+- [`lib/core/i_local_preferences.dart`](lib/core/i_local_preferences.dart) — Storage contract with shared and encrypted adapters. The session uses the encrypted one.
+- [`lib/core/user_facing_exception.dart`](lib/core/user_facing_exception.dart) — Marks an exception whose `message` may be shown as is. [`error_message.dart`](lib/core/error_message.dart) passes those through and gives everything else a fallback.
+
+## ROBLE
+
+The backend. [`docs/roble.md`](docs/roble.md) holds the schema, the rate limits and
+the failure modes; this is where the code lives.
+
+- [`lib/core/roble/roble_config.dart`](lib/core/roble/roble_config.dart) — Host, contract id and table names, overridable with `--dart-define`.
+- [`lib/core/roble/roble_client.dart`](lib/core/roble/roble_client.dart) — REST transport: Bearer header, status-code translation, and one refresh-and-retry on a 401. No Flutter imports, so `tool/seed_roble.dart` reuses it.
+- [`lib/core/roble/roble_session.dart`](lib/core/roble/roble_session.dart) — Tokens and user, in memory and mirrored to encrypted storage. Persisted because `login` allows only 10 attempts per 15 minutes per IP.
+- [`lib/core/roble/roble_user.dart`](lib/core/roble/roble_user.dart) — The account as `GET /me` describes it.
+- [`lib/core/roble/roble_exception.dart`](lib/core/roble/roble_exception.dart) — One sealed family, each with a Spanish message ready to display.
+- [`lib/core/roble/roble_password_policy.dart`](lib/core/roble/roble_password_policy.dart) — Checked before `signup`, whose 5-per-hour budget a rejected password would spend anyway.
+- [`lib/core/roble/roble_session_service.dart`](lib/core/roble/roble_session_service.dart) — `ISessionService` over the ROBLE session.
+- [`tool/seed_roble.dart`](tool/seed_roble.dart) — Inserts the three demo projects. Idempotent; asks for credentials on the console or reads `ROBLE_EMAIL` / `ROBLE_PASSWORD`.
 
 ## Listings feature
 
@@ -46,9 +62,10 @@ The core feature: publish a project, browse open projects, request to join one.
 
 ### Data
 
-- [`data/datasources/i_listing_source.dart`](lib/features/listings/data/datasources/i_listing_source.dart) — Storage contract, shared by the in-memory source and the future HTTP one.
-- [`data/datasources/local/local_listing_source.dart`](lib/features/listings/data/datasources/local/local_listing_source.dart) — In-memory store seeded with three demo projects. State resets on restart.
-- [`data/repositories/listing_repository.dart`](lib/features/listings/data/repositories/listing_repository.dart) — Delegates to the source and owns the rules the source does not: what counts as featured, and that accepting a request also adds the applicant as a member.
+- [`data/datasources/i_listing_source.dart`](lib/features/listings/data/datasources/i_listing_source.dart) — Storage contract. Ids are the `_id` UUIDs the database assigns; the app never invents one.
+- [`data/datasources/remote/roble_listing_source.dart`](lib/features/listings/data/datasources/remote/roble_listing_source.dart) — The active store, over three ROBLE tables. Does what ROBLE cannot: group members across tables, sort, undo a half-written project, and treat a duplicate membership as success.
+- [`data/repositories/listing_repository.dart`](lib/features/listings/data/repositories/listing_repository.dart) — Delegates to the source and owns the rules the source does not: what counts as featured, and that accepting a request also adds the applicant as a member — membership first, since there are no transactions.
+- [`domain/listing_exception.dart`](lib/features/listings/domain/listing_exception.dart) — A listings rule the user ran into, with a message meant to be read.
 
 ### UI
 
@@ -70,19 +87,32 @@ The core feature: publish a project, browse open projects, request to join one.
 
 ## Authentication feature
 
-Carried over from the template and kept for later. Login and signup pages,
-controller, repository, and a local multi-user source all work, but no route
-points at them yet, so the app opens straight onto home.
+Real accounts, in ROBLE. The template's local store — which kept passwords in
+cleartext — is gone, and `RobleSession` wipes the keys it left behind.
+
+- [`data/datasources/remote/i_authentication_source.dart`](lib/features/auth/data/datasources/remote/i_authentication_source.dart) — What the repository may ask for.
+- [`data/datasources/remote/roble_authentication_source.dart`](lib/features/auth/data/datasources/remote/roble_authentication_source.dart) — ROBLE's implementation. Remaps a 401 on login to "wrong credentials", and keeps the session when the network — not ROBLE — is what failed.
+- [`ui/viewmodels/authentication_controller.dart`](lib/features/auth/ui/viewmodels/authentication_controller.dart) — Login, signup and logout state, with the password policy checked before the request.
+- [`ui/views/`](lib/features/auth/ui/views) — `login_page` and `signup_page`, routed at `/login` and `/signup`.
+
+The app opens on login when there is no stored session, and the home header
+carries the logout button.
 
 ## Tests
 
-- [`test/features/listings/listing_flows_test.dart`](test/features/listings/listing_flows_test.dart) — Drives the real app through home, publishing a project, and requesting to join one.
-- [`test/features/auth/authentication_source_service_test.dart`](test/features/auth/authentication_source_service_test.dart) — Account storage and credential checks.
+Nothing in the suite talks to the real ROBLE: that would need credentials and a
+network, and would leave rows behind for the next run to trip over.
+
+- [`test/features/listings/listing_flows_test.dart`](test/features/listings/listing_flows_test.dart) — Drives the real app through home, publishing a project, and requesting to join one, on the doubles in `test/support/`.
+- [`test/features/listings/roble_listing_source_test.dart`](test/features/listings/roble_listing_source_test.dart) — The source against a fake ROBLE: ordering, member grouping, rollback, duplicates, full projects.
+- [`test/core/roble/roble_client_test.dart`](test/core/roble/roble_client_test.dart) — Transport over `MockClient`: the single refresh-and-retry, both row shapes, 429, and the UUID guard.
+- [`test/core/roble/roble_password_policy_test.dart`](test/core/roble/roble_password_policy_test.dart) — Every rule, and every symbol ROBLE accepts.
+- [`test/support/`](test/support) — `fake_roble_api.dart` (ROBLE's database endpoints over a map of tables, composite `UNIQUE` included), `in_memory_listing_source.dart`, `test_bindings.dart`, `memory_preferences.dart`.
 
 ## Current implementation boundaries
 
-- No backend. `LocalListingSource` holds everything in memory and resets on restart.
-- The session is a fixed mock user; authentication exists but is not wired into the app shell.
+- Every listing read is a full table read, sorted and filtered in Dart, because ROBLE filters by equality only. Fine at course scale, and the first thing to revisit if the data grows.
+- `max_members` is advisory: with no conditional writes a project can end up one member over the ceiling. See [`docs/roble.md`](docs/roble.md).
 - Accepting and rejecting join requests works at the repository level, but no screen exposes it yet.
 - The "Proyectos" and "Perfil" tabs of the bottom navigation bar are inert.
-- `_template_removed/` holds the template's product feature and the old mock files, kept until the team confirms they are no longer needed.
+- Password reset and e-mail verification exist in the client; no screen calls them.

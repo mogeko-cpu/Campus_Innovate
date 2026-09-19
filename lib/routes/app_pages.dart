@@ -1,5 +1,7 @@
 import 'package:get/get.dart';
 
+import '../features/auth/ui/views/login_page.dart';
+import '../features/auth/ui/views/signup_page.dart';
 import '../features/home/home_dependencies.dart';
 import '../features/home/ui/views/home_page.dart';
 import '../features/listings/listings_dependencies.dart';
@@ -11,6 +13,10 @@ import 'app_routes.dart';
 
 class AppPages {
   static final pages = <GetPage>[
+    // The auth pages need no binding: [AuthenticationController] is registered
+    // by the composition root, since the session outlives any single route.
+    GetPage(name: AppRoutes.login, page: () => const LoginPage()),
+    GetPage(name: AppRoutes.signup, page: () => const SignUpPage()),
     GetPage(
       name: AppRoutes.home,
       page: () => const HomePage(),

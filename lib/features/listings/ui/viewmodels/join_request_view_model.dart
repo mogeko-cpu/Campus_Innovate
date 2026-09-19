@@ -1,8 +1,8 @@
 import 'package:get/get.dart';
 
+import '../../../../core/error_message.dart';
 import '../../../../core/i_session_service.dart';
 import '../../domain/models/join_request.dart';
-import '../../domain/models/join_request_status.dart';
 import '../../domain/repositories/i_listing_repository.dart';
 
 class JoinRequestViewModel extends GetxController {
@@ -14,12 +14,12 @@ class JoinRequestViewModel extends GetxController {
   final RxBool isSending = false.obs;
   final RxnString error = RxnString();
 
-  late final int listingId;
+  late final String listingId;
 
   @override
   void onInit() {
     super.onInit();
-    listingId = int.tryParse(Get.parameters['id'] ?? '') ?? -1;
+    listingId = Get.parameters['id'] ?? '';
   }
 
   Future<bool> submit({
@@ -32,21 +32,22 @@ class JoinRequestViewModel extends GetxController {
       error.value = null;
 
       await _repository.createJoinRequest(
-        JoinRequest(
-          id: DateTime.now().millisecondsSinceEpoch,
+        JoinRequest.draft(
           listingId: listingId,
           applicantId: _session.currentUserId,
           applicantName: _session.currentUserName,
           motivation: motivation.trim(),
           skills: skills.trim(),
           availability: availability.trim(),
-          status: JoinRequestStatus.pending,
         ),
       );
 
       return true;
-    } catch (_) {
-      error.value = 'No se pudo enviar la solicitud';
+    } catch (failure) {
+      error.value = errorMessage(
+        failure,
+        fallback: 'No se pudo enviar la solicitud',
+      );
 
       return false;
     } finally {
