@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:loggy/loggy.dart';
-import '../viewmodels/authentication_controller.dart';
-import 'signup_page.dart';
 
+import '../../../../routes/app_routes.dart';
+import '../viewmodels/authentication_controller.dart';
+
+/// Entry point when there is no session.
+///
+/// It no longer arrives with credentials typed in: the template shipped with
+/// `a@a.com` / `ThePassword1!` in the fields, which against a real database would
+/// mean every build trying to log into somebody's account.
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -11,134 +16,129 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> with UiLoggy {
+class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
-  final controllerEmail = TextEditingController(text: 'a@a.com');
-  final controllerPassword = TextEditingController(text: 'ThePassword1!');
-  AuthenticationController authenticationController = Get.find();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
 
-  Future<void> _login(String theEmail, String thePassword) async {
-    loggy.debug('_login $theEmail');
-    final loggedIn = await authenticationController.login(
-      theEmail,
-      thePassword,
+  AuthenticationController get _controller =>
+      Get.find<AuthenticationController>();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    FocusScope.of(context).unfocus();
+
+    if (!_formKey.currentState!.validate()) return;
+
+    final loggedIn = await _controller.login(
+      _emailController.text,
+      _passwordController.text,
     );
+
     if (!loggedIn) {
       Get.snackbar(
-        "Login",
-        authenticationController.error.value,
-        icon: const Icon(Icons.person, color: Colors.red),
+        'No se pudo entrar',
+        _controller.error.value,
         snackPosition: SnackPosition.BOTTOM,
       );
+
+      return;
     }
+
+    // Replaces the stack: going "back" to the login screen from home would make
+    // no sense once there is a session.
+    await Get.offAllNamed(AppRoutes.home);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    "Login to access your account",
-                    style: TextStyle(fontSize: 20),
-                  ),
-                  const SizedBox(height: 30),
-                  TextFormField(
-                    keyboardType: TextInputType.emailAddress,
-                    controller: controllerEmail,
-                    decoration: const InputDecoration(
-                      labelText: "Email address",
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(20)),
-                      ),
-                    ),
-                    validator: (String? value) {
-                      if (value!.isEmpty) {
-                        return "Enter email";
-                      } else if (!value.contains('@')) {
-                        return "Enter valid email address";
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                  TextFormField(
-                    controller: controllerPassword,
-                    decoration: const InputDecoration(
-                      labelText: "Password",
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(20)),
-                      ),
-                    ),
-                    obscureText: true,
-                    validator: (String? value) {
-                      if (value!.isEmpty) {
-                        return "Enter password";
-                      } else if (value.length < 6) {
-                        return "Password should have at least 6 characters";
-                      }
-                      return null;
-                    },
-                    onFieldSubmitted: (value) async {
-                      FocusScope.of(context).requestFocus(FocusNode());
-                      final form = _formKey.currentState;
-                      form!.save();
-                      if (_formKey.currentState!.validate()) {
-                        await _login(
-                          controllerEmail.text,
-                          controllerPassword.text,
-                        );
-                      }
-                    },
-                  ),
+    final theme = Theme.of(context);
 
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: FilledButton.tonal(
-                          onPressed: () async {
-                            // this line dismiss the keyboard by taking away the focus of the TextFormField and giving it to an unused
-                            FocusScope.of(context).requestFocus(FocusNode());
-                            final form = _formKey.currentState;
-                            form!.save();
-                            if (_formKey.currentState!.validate()) {
-                              await _login(
-                                controllerEmail.text,
-                                controllerPassword.text,
-                              );
-                            }
-                          },
-                          child: const Text("Login"),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const SignUpPage(),
-                        ),
-                      );
-                    },
-                    child: const Text("Create account"),
-                  ),
-                ],
+    return Scaffold(
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(24, 48, 24, 32),
+            children: [
+              Icon(
+                Icons.school_outlined,
+                size: 48,
+                color: theme.colorScheme.primary,
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Text(
+                'Campus Innovate',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Entra para publicar ideas y unirte a proyectos del campus.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 36),
+              TextFormField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                autofillHints: const [AutofillHints.email],
+                decoration: const InputDecoration(
+                  labelText: 'Correo institucional',
+                  hintText: 'nombre@uninorte.edu.co',
+                ),
+                validator: (value) {
+                  final email = value?.trim() ?? '';
+
+                  if (email.isEmpty) return 'Escribe tu correo';
+                  if (!email.contains('@')) return 'Escribe un correo válido';
+
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _passwordController,
+                obscureText: true,
+                autofillHints: const [AutofillHints.password],
+                decoration: const InputDecoration(labelText: 'Contraseña'),
+                onFieldSubmitted: (_) => _submit(),
+                validator: (value) =>
+                    (value == null || value.isEmpty) ? 'Escribe tu contraseña' : null,
+              ),
+              const SizedBox(height: 28),
+              Obx(
+                () => FilledButton(
+                  onPressed: _controller.isLoading ? null : _submit,
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52),
+                  ),
+                  child: _controller.isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Iniciar sesión'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => Get.toNamed(AppRoutes.signup),
+                child: const Text('Crear una cuenta'),
+              ),
+            ],
+          ),
         ),
       ),
     );

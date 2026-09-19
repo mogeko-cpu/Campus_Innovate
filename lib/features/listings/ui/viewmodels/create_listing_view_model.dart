@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 
+import '../../../../core/error_message.dart';
 import '../../../../core/i_session_service.dart';
 import '../../domain/models/listing.dart';
 import '../../domain/models/listing_category.dart';
@@ -41,8 +42,10 @@ class CreateListingViewModel extends GetxController {
       isSaving.value = true;
       error.value = null;
 
-      final listing = Listing(
-        id: DateTime.now().millisecondsSinceEpoch,
+      // A draft with no id: ROBLE assigns it, and the saved project comes back
+      // with it. The app used to make one up from the clock, which two devices
+      // publishing in the same millisecond would have collided on.
+      final draft = Listing.draft(
         title: title.trim(),
         description: description.trim(),
         category: category.value,
@@ -50,12 +53,13 @@ class CreateListingViewModel extends GetxController {
         creatorName: _session.currentUserName,
         maxMembers: maxMembers.value,
         requiredSkills: List.unmodifiable(requiredSkills),
-        memberIds: [_session.currentUserId],
       );
 
-      return await _repository.createListing(listing);
-    } catch (_) {
-      error.value = 'No se pudo crear el proyecto';
+      return await _repository.createListing(draft);
+    } catch (failure) {
+      // ROBLE's own wording is the useful part here: "espera 40 segundos" or
+      // "tu sesión expiró" tell the user what to do; a generic line does not.
+      error.value = errorMessage(failure, fallback: 'No se pudo crear el proyecto');
 
       return null;
     } finally {

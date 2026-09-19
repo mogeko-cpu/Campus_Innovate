@@ -1,16 +1,24 @@
-import '../../../domain/models/join_request.dart';
-import '../../../domain/models/join_request_status.dart';
-import '../../../domain/models/listing.dart';
-import '../i_listing_source.dart';
+import 'package:campus_innovate/features/listings/data/datasources/i_listing_source.dart';
+import 'package:campus_innovate/features/listings/domain/listing_exception.dart';
+import 'package:campus_innovate/features/listings/domain/models/join_request.dart';
+import 'package:campus_innovate/features/listings/domain/models/join_request_status.dart';
+import 'package:campus_innovate/features/listings/domain/models/listing.dart';
 
-/// In-memory listing store seeded with demo content.
+/// [IListingSource] in memory, seeded with the same three demo projects that
+/// live in ROBLE.
 ///
-/// State lives for the lifetime of the instance, so it resets on every app
-/// restart. Registered as a singleton in [AppBindings].
-class LocalListingSource implements IListingSource {
+/// This is what the widget tests run on. It used to be the app's only storage,
+/// under `lib/`; now it is test support, because a test that reached the real
+/// ROBLE would need credentials, a network, and would leave rows behind for the
+/// next run to trip over.
+///
+/// It mimics the two guarantees the database provides — ids come from the store,
+/// and a person cannot join or apply twice — so a test passing here means the
+/// same flow works there.
+class InMemoryListingSource implements IListingSource {
   final List<Listing> _listings = [
     const Listing(
-      id: 1,
+      id: 'listing_1',
       title: 'Campus App',
       description:
           'Aplicación para mejorar la experiencia de los estudiantes dentro del campus: '
@@ -23,7 +31,7 @@ class LocalListingSource implements IListingSource {
       memberIds: ['user_2'],
     ),
     const Listing(
-      id: 2,
+      id: 'listing_2',
       title: 'Huerta Universitaria',
       description:
           'Proyecto de sostenibilidad para cultivar alimentos en zonas verdes del campus '
@@ -36,7 +44,7 @@ class LocalListingSource implements IListingSource {
       memberIds: ['user_3', 'user_4'],
     ),
     const Listing(
-      id: 3,
+      id: 'listing_3',
       title: 'Semillero de Robótica',
       description:
           'Construcción de un robot autónomo para competir en el torneo interuniversitario '
@@ -52,11 +60,15 @@ class LocalListingSource implements IListingSource {
 
   final List<JoinRequest> _requests = [];
 
+  var _nextId = 100;
+
+  String _newId(String prefix) => '${prefix}_${_nextId++}';
+
   @override
   Future<List<Listing>> getListings() async => List.unmodifiable(_listings);
 
   @override
-  Future<Listing?> getListingById(int id) async {
+  Future<Listing?> getListingById(String id) async {
     final index = _listings.indexWhere((listing) => listing.id == id);
 
     return index == -1 ? null : _listings[index];
@@ -64,25 +76,40 @@ class LocalListingSource implements IListingSource {
 
   @override
   Future<Listing> createListing(Listing listing) async {
-    _listings.insert(0, listing);
+    final stored = listing.copyWith(id: _newId('listing'));
+    _listings.insert(0, stored);
 
-    return listing;
+    return stored;
   }
 
   @override
   Future<JoinRequest> createJoinRequest(JoinRequest request) async {
-    _requests.add(request);
+    final duplicate = _requests.any(
+      (existing) =>
+          existing.listingId == request.listingId &&
+          existing.applicantId == request.applicantId,
+    );
 
-    return request;
+    // The `UNIQUE (listing_id, applicant_id)` of the real table.
+    if (duplicate) {
+      throw const ListingException('Ya enviaste una solicitud a este proyecto.');
+    }
+
+    final stored = request.copyWith(id: _newId('request'));
+    _requests.add(stored);
+
+    return stored;
   }
 
   @override
-  Future<List<JoinRequest>> getRequestsForListing(int listingId) async {
-    return _requests.where((request) => request.listingId == listingId).toList();
+  Future<List<JoinRequest>> getRequestsForListing(String listingId) async {
+    return _requests
+        .where((request) => request.listingId == listingId)
+        .toList();
   }
 
   @override
-  Future<JoinRequest?> getRequestById(int id) async {
+  Future<JoinRequest?> getRequestById(String id) async {
     final index = _requests.indexWhere((request) => request.id == id);
 
     return index == -1 ? null : _requests[index];
@@ -90,13 +117,13 @@ class LocalListingSource implements IListingSource {
 
   @override
   Future<void> updateRequestStatus(
-    int requestId,
+    String requestId,
     JoinRequestStatus status,
   ) async {
     final index = _requests.indexWhere((request) => request.id == requestId);
 
     if (index == -1) {
-      throw StateError('Solicitud $requestId no encontrada');
+      throw ListingException('La solicitud $requestId ya no existe.');
     }
 
     _requests[index] = _requests[index].copyWith(status: status);
@@ -104,19 +131,23 @@ class LocalListingSource implements IListingSource {
 
   @override
   Future<void> addMember({
-    required int listingId,
+    required String listingId,
     required String userId,
   }) async {
     final index = _listings.indexWhere((listing) => listing.id == listingId);
 
     if (index == -1) {
-      throw StateError('Proyecto $listingId no encontrado');
+      throw ListingException('El proyecto $listingId ya no existe.');
     }
 
     final listing = _listings[index];
 
-    if (listing.memberIds.contains(userId)) {
-      return;
+    if (listing.memberIds.contains(userId)) return;
+
+    if (listing.isFull) {
+      throw const ListingException(
+        'El proyecto ya alcanzó su número máximo de integrantes.',
+      );
     }
 
     _listings[index] = listing.copyWith(

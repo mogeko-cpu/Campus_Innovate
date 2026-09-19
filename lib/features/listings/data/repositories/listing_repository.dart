@@ -20,7 +20,7 @@ class ListingRepository implements IListingRepository {
   }
 
   @override
-  Future<Listing?> getListingById(int id) => _source.getListingById(id);
+  Future<Listing?> getListingById(String id) => _source.getListingById(id);
 
   @override
   Future<Listing> createListing(Listing listing) =>
@@ -31,12 +31,12 @@ class ListingRepository implements IListingRepository {
       _source.createJoinRequest(request);
 
   @override
-  Future<List<JoinRequest>> getRequestsForListing(int listingId) =>
+  Future<List<JoinRequest>> getRequestsForListing(String listingId) =>
       _source.getRequestsForListing(listingId);
 
   @override
   Future<JoinRequest?> getMyRequestForListing({
-    required int listingId,
+    required String listingId,
     required String applicantId,
   }) async {
     final requests = await _source.getRequestsForListing(listingId);
@@ -48,22 +48,30 @@ class ListingRepository implements IListingRepository {
   }
 
   @override
-  Future<void> acceptJoinRequest(int requestId) async {
+  /// Accepting is two writes and ROBLE has no transactions, so the order is
+  /// chosen for what a failure between them leaves behind: the membership goes
+  /// in **first**, and only then is the request marked accepted.
+  ///
+  /// Fail after the membership and the request still reads "Pendiente", so the
+  /// creator accepts again and the second run fixes it — [IListingSource.addMember]
+  /// is idempotent. The opposite order would show an accepted request whose
+  /// applicant never joined, and retrying would look like a no-op.
+  Future<void> acceptJoinRequest(String requestId) async {
     final request = await _source.getRequestById(requestId);
 
     if (request == null) {
       throw StateError('Solicitud $requestId no encontrada');
     }
 
-    await _source.updateRequestStatus(requestId, JoinRequestStatus.accepted);
     await _source.addMember(
       listingId: request.listingId,
       userId: request.applicantId,
     );
+    await _source.updateRequestStatus(requestId, JoinRequestStatus.accepted);
   }
 
   @override
-  Future<void> rejectJoinRequest(int requestId) =>
+  Future<void> rejectJoinRequest(String requestId) =>
       _source.updateRequestStatus(requestId, JoinRequestStatus.rejected);
 
   @override

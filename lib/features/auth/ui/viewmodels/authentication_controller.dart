@@ -1,11 +1,13 @@
-import 'package:campus_innovate/features/auth/domain/models/authentication_user.dart';
-import 'package:campus_innovate/features/auth/domain/repositories/i_auth_repository.dart';
 import 'package:get/get.dart';
-
 import 'package:loggy/loggy.dart';
 
 import '../../../../core/error_message.dart';
+import '../../../../core/roble/roble_password_policy.dart';
+import '../../domain/models/authentication_user.dart';
+import '../../domain/repositories/i_auth_repository.dart';
 
+/// Session state for the UI: who is signed in, whether a request is in flight,
+/// and what to tell the user when one fails.
 class AuthenticationController extends GetxController with UiLoggy {
   final IAuthRepository repoAuthentication;
   final _logged = false.obs;
@@ -20,6 +22,7 @@ class AuthenticationController extends GetxController with UiLoggy {
   bool get isLoading => _isLoading.value;
   bool get isLogged => _logged.value;
   String get loggedEmail => _loggedUser.value?.email ?? '';
+  String get loggedName => _loggedUser.value?.name ?? '';
 
   @override
   void onInit() {
@@ -34,23 +37,21 @@ class AuthenticationController extends GetxController with UiLoggy {
           ? await repoAuthentication.getLoggedUser()
           : null;
     } catch (exception) {
-      loggy.warning(
-        'AuthenticationController: Could not restore session: $exception',
-      );
+      loggy.warning('AuthenticationController: no se pudo restaurar la sesión: $exception');
       _logged.value = false;
       _loggedUser.value = null;
     }
   }
 
   Future<bool> login(String email, String password) async {
-    loggy.debug('AuthenticationController: Login $email');
+    loggy.debug('AuthenticationController: login $email');
     error.value = '';
-    if (!_validate(email, password)) {
-      loggy.warning('AuthenticationController: Invalid email or password');
-      error.value =
-          'Enter a valid email and a password with at least 7 characters.';
+
+    if (!_isEmail(email) || password.isEmpty) {
+      error.value = 'Escribe tu correo institucional y tu contraseña.';
       return false;
     }
+
     _isLoading.value = true;
     try {
       final loggedIn = await repoAuthentication.login(
@@ -60,38 +61,61 @@ class AuthenticationController extends GetxController with UiLoggy {
       _loggedUser.value = loggedIn
           ? await repoAuthentication.getLoggedUser()
           : null;
-      if (!loggedIn) error.value = 'Unable to sign in. Check your credentials.';
+      if (!loggedIn) error.value = 'No se pudo iniciar sesión. Revisa tus datos.';
       return loggedIn;
     } catch (exception) {
-      loggy.error('AuthenticationController: Login error $exception');
-      error.value = errorMessage(exception);
+      loggy.error('AuthenticationController: error de login $exception');
+      // ROBLE's answer is the useful one: wrong credentials, rate limit reached,
+      // no connection. Each needs a different reaction from the user.
+      error.value = errorMessage(
+        exception,
+        fallback: 'No se pudo iniciar sesión. Intenta de nuevo.',
+      );
       return false;
     } finally {
       _isLoading.value = false;
     }
   }
 
-  Future<bool> signUp(String email, String password) async {
-    loggy.debug('AuthenticationController: Sign Up $email');
+  /// Registers the account. [name] is what the rest of the campus sees next to a
+  /// project, so it is asked for here instead of being derived from the e-mail.
+  Future<bool> signUp(String name, String email, String password) async {
+    loggy.debug('AuthenticationController: signup $email');
     error.value = '';
-    if (!_validate(email, password)) {
-      loggy.warning('AuthenticationController: Invalid email or password');
-      error.value =
-          'Enter a valid email and a password with at least 7 characters.';
+
+    if (name.trim().length < 3) {
+      error.value = 'Escribe tu nombre completo.';
       return false;
     }
+
+    if (!_isEmail(email)) {
+      error.value = 'Escribe un correo válido.';
+      return false;
+    }
+
+    // ROBLE only allows 5 registrations per hour per IP and counts the failures
+    // too, so an invalid password never becomes a request.
+    final rejection = RoblePasswordPolicy.validate(password);
+    if (rejection != null) {
+      error.value = rejection;
+      return false;
+    }
+
     _isLoading.value = true;
     try {
       final created = await repoAuthentication.signUp(
-        AuthenticationUser(email: email, name: email, password: password),
+        AuthenticationUser(email: email, name: name, password: password),
       );
       if (!created) {
-        error.value = 'Unable to create the account. Please try again.';
+        error.value = 'No se pudo crear la cuenta. Intenta de nuevo.';
       }
       return created;
     } catch (exception) {
-      loggy.error('AuthenticationController: Sign up error $exception');
-      error.value = errorMessage(exception);
+      loggy.error('AuthenticationController: error de registro $exception');
+      error.value = errorMessage(
+        exception,
+        fallback: 'No se pudo crear la cuenta. Intenta de nuevo.',
+      );
       return false;
     } finally {
       _isLoading.value = false;
@@ -99,17 +123,20 @@ class AuthenticationController extends GetxController with UiLoggy {
   }
 
   Future<bool> logOut() async {
-    loggy.debug('AuthenticationController: Log Out');
+    loggy.debug('AuthenticationController: logout');
     error.value = '';
     try {
       final loggedOut = await repoAuthentication.logOut();
       _logged.value = false;
       _loggedUser.value = null;
-      if (!loggedOut) error.value = 'Unable to sign out. Please try again.';
+      if (!loggedOut) error.value = 'No se pudo cerrar sesión. Intenta de nuevo.';
       return loggedOut;
     } catch (exception) {
-      loggy.error('AuthenticationController: Logout error $exception');
-      error.value = errorMessage(exception);
+      loggy.error('AuthenticationController: error de logout $exception');
+      error.value = errorMessage(
+        exception,
+        fallback: 'No se pudo cerrar sesión. Intenta de nuevo.',
+      );
       // A failed remote request should not keep a user in a local session that
       // is no longer trustworthy.
       _logged.value = false;
@@ -118,6 +145,14 @@ class AuthenticationController extends GetxController with UiLoggy {
     }
   }
 
-  bool _validate(String email, String password) =>
-      email.isNotEmpty && password.length > 6;
+  /// Enough to catch a typo, not a whole RFC: ROBLE has the last word when it
+  /// rejects the address.
+  bool _isEmail(String email) {
+    final value = email.trim();
+
+    return value.length > 4 &&
+        value.contains('@') &&
+        value.contains('.') &&
+        !value.contains(' ');
+  }
 }

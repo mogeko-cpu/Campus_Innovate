@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 
+import '../../../../core/error_message.dart';
 import '../../../../core/i_session_service.dart';
 import '../../../listings/domain/models/listing.dart';
 import '../../../listings/domain/repositories/i_listing_repository.dart';
@@ -35,8 +36,11 @@ class HomeViewModel extends GetxController {
 
       featuredListings.assignAll(featured);
       myListings.assignAll(mine);
-    } catch (_) {
-      error.value = 'No se pudieron cargar las ideas';
+    } catch (failure) {
+      error.value = errorMessage(
+        failure,
+        fallback: 'No se pudieron cargar las ideas',
+      );
     } finally {
       isLoading.value = false;
     }
