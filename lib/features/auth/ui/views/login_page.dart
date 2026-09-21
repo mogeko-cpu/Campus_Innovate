@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../../../routes/app_routes.dart';
 import '../viewmodels/authentication_controller.dart';
+import '../widgets/google_sign_in_button.dart';
 
 /// Entry point when there is no session.
 ///
@@ -23,6 +24,28 @@ class _LoginPageState extends State<LoginPage> {
 
   AuthenticationController get _controller =>
       Get.find<AuthenticationController>();
+
+  @override
+  void initState() {
+    super.initState();
+
+    // A failed return from Google is exchanged while the app boots, so the
+    // message is already waiting in the controller when this screen appears —
+    // it has nowhere else to be shown. After the first frame because a snackbar
+    // needs the overlay, which does not exist yet during `initState`.
+    final pending = _controller.error.value;
+
+    if (pending.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _controller.error.value = '';
+        Get.snackbar(
+          'No se pudo entrar con Google',
+          pending,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -132,6 +155,7 @@ class _LoginPageState extends State<LoginPage> {
                       : const Text('Iniciar sesión'),
                 ),
               ),
+              const GoogleSignInButton(),
               const SizedBox(height: 12),
               TextButton(
                 onPressed: () => Get.toNamed(AppRoutes.signup),

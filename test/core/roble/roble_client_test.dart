@@ -80,6 +80,103 @@ void main() {
     expect(session.isActive, isTrue);
   });
 
+  test('the Google flow starts by naming a registered destination', () async {
+    Map<String, dynamic>? sent;
+    String? path;
+
+    final client = clientWith(
+      MockClient((request) async {
+        path = request.url.path;
+        sent = jsonDecode(request.body) as Map<String, dynamic>;
+
+        return http.Response(
+          jsonEncode({
+            'url': 'https://accounts.google.com/o/oauth2/v2/auth?client_id=x',
+            'state': 'ZGI=.uuid',
+          }),
+          201,
+        );
+      }),
+    );
+
+    final start = await client.startSocialLogin();
+
+    expect(path, '/auth/$contract/auth/google/start');
+    // The name of a destination the console approved, never a URL from the build.
+    expect(sent, {'redirect': 'default'});
+    expect(start.url, contains('accounts.google.com'));
+    expect(start.state, 'ZGI=.uuid');
+    // Nothing is signed in yet: the person has not even seen Google.
+    expect(session.isActive, isFalse);
+  });
+
+  test('the code from the return address becomes a session', () async {
+    String? exchangePath;
+
+    final client = clientWith(
+      MockClient((request) async {
+        if (request.url.path == '/auth/$contract/auth/token') {
+          exchangePath = request.url.path;
+          expect(jsonDecode(request.body), {'code': 'codigo-de-un-uso'});
+
+          return http.Response(
+            jsonEncode({'accessToken': 'access-g', 'refreshToken': 'refresh-g'}),
+            201,
+          );
+        }
+
+        if (request.url.path == '/auth/$contract/me') {
+          expect(request.headers['Authorization'], 'Bearer access-g');
+
+          return http.Response(
+            jsonEncode({
+              'userId': 'user-uuid',
+              'email': 'ana@uninorte.edu.co',
+              'name': 'Ana Pérez',
+            }),
+            200,
+          );
+        }
+
+        return http.Response('no esperado: ${request.url}', 404);
+      }),
+    );
+
+    final signedIn = await client.exchangeSocialCode('codigo-de-un-uso');
+
+    // The project's route, not the provider's: the code already ties the flow to
+    // the contract.
+    expect(exchangePath, '/auth/$contract/auth/token');
+    expect(signedIn.id, 'user-uuid');
+    expect(session.accessToken, 'access-g');
+    expect(session.refreshToken, 'refresh-g');
+  });
+
+  test('a spent code leaves no session behind', () async {
+    final client = clientWith(
+      MockClient(
+        (request) async => http.Response(
+          jsonEncode({'message': 'Código inválido o expirado'}),
+          400,
+        ),
+      ),
+    );
+
+    await expectLater(
+      client.exchangeSocialCode('ya-usado'),
+      throwsA(
+        isA<RobleBadRequestException>().having(
+          (error) => error.message,
+          'message',
+          contains('expirado'),
+        ),
+      ),
+    );
+
+    expect(session.isActive, isFalse);
+    expect(preferences.values, isEmpty);
+  });
+
   test('a 401 while reading refreshes the token once and retries', () async {
     await session.save(
       accessToken: 'expired',

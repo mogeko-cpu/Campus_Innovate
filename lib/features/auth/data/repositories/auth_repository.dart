@@ -24,6 +24,14 @@ class AuthRepository implements IAuthRepository {
       await authenticationSource.signUp(user);
 
   @override
+  Future<void> startGoogleSignIn() async =>
+      await authenticationSource.startGoogleSignIn();
+
+  @override
+  Future<bool> completeGoogleSignIn() async =>
+      await authenticationSource.completeGoogleSignIn();
+
+  @override
   Future<bool> logOut() async => await authenticationSource.logOut();
 
   @override

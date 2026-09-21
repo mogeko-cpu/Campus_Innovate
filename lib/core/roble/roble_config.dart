@@ -26,6 +26,17 @@ abstract final class RobleConfig {
 
   /// Tables the app owns. Every name used by a data source comes from here so
   /// that a rename is one edit and `docs/roble.md` has one place to match.
+  /// Name of the return destination the social login comes back to.
+  ///
+  /// Not a URL on purpose: the ROBLE console keeps the list of allowed addresses
+  /// and the app only names one of them, so a build can never send people to a
+  /// destination the project owner did not approve. `default` is the entry that
+  /// points at the web app.
+  static const String socialRedirect = String.fromEnvironment(
+    'ROBLE_SOCIAL_REDIRECT',
+    defaultValue: 'default',
+  );
+
   static const String listingsTable = 'listings';
   static const String listingMembersTable = 'listing_members';
   static const String joinRequestsTable = 'join_requests';

@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 
+import '../core/error_message.dart';
 import '../core/i_local_preferences.dart';
 import '../core/i_session_service.dart';
 import '../core/local_preferences_secured.dart';
@@ -37,6 +38,7 @@ class AppBindings extends Bindings {
     required this.client,
     required this.authenticationSource,
     required this.initialRoute,
+    required this.socialError,
   });
 
   /// Wires everything up and works out where the app should open.
@@ -60,12 +62,30 @@ class AppBindings extends Bindings {
       hasSession = false;
     }
 
+    // A launch that is the return from Google carries a one-time code in the
+    // address. It is spent here, before the first route is chosen, so the app
+    // opens signed in instead of showing the login form for a moment and jumping.
+    var socialError = '';
+    if (!hasSession) {
+      try {
+        hasSession = await authenticationSource.completeGoogleSignIn();
+      } catch (exception) {
+        // Nobody to tell yet: the message travels to the login screen, which is
+        // where the user ends up.
+        socialError = errorMessage(
+          exception,
+          fallback: 'No se pudo completar el inicio de sesión con Google.',
+        );
+      }
+    }
+
     return AppBindings._(
       preferences: preferences,
       session: session,
       client: client,
       authenticationSource: authenticationSource,
       initialRoute: hasSession ? AppRoutes.home : AppRoutes.login,
+      socialError: socialError,
     );
   }
 
@@ -76,6 +96,10 @@ class AppBindings extends Bindings {
 
   /// Home when the session is good, login when it is not.
   final String initialRoute;
+
+  /// Why the return from Google did not end in a session, empty when it did or
+  /// when this launch was not a return at all.
+  final String socialError;
 
   @override
   void dependencies() {
@@ -110,7 +134,10 @@ class AppBindings extends Bindings {
       permanent: true,
     );
     Get.put(
-      AuthenticationController(Get.find<IAuthRepository>()),
+      AuthenticationController(
+        Get.find<IAuthRepository>(),
+        initialError: socialError,
+      ),
       permanent: true,
     );
   }

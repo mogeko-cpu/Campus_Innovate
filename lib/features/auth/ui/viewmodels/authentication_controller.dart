@@ -17,7 +17,12 @@ class AuthenticationController extends GetxController with UiLoggy {
   /// Empty while the latest authentication request completed successfully.
   final RxString error = ''.obs;
 
-  AuthenticationController(this.repoAuthentication);
+  /// [initialError] carries a failure that happened before any screen existed:
+  /// the return from Google is exchanged while the app boots, so there is nobody
+  /// to tell when it goes wrong. The login screen shows it on its first frame.
+  AuthenticationController(this.repoAuthentication, {String initialError = ''}) {
+    error.value = initialError;
+  }
 
   bool get isLoading => _isLoading.value;
   bool get isLogged => _logged.value;
@@ -115,6 +120,31 @@ class AuthenticationController extends GetxController with UiLoggy {
       error.value = errorMessage(
         exception,
         fallback: 'No se pudo crear la cuenta. Intenta de nuevo.',
+      );
+      return false;
+    } finally {
+      _isLoading.value = false;
+    }
+  }
+
+  /// Hands the sign-in to Google, from the login screen or from the signup one.
+  ///
+  /// A `true` does not mean there is a session: on the web the page is already on
+  /// its way to Google and the session appears when the browser comes back. It
+  /// only means there was nothing to tell the user about.
+  Future<bool> signInWithGoogle() async {
+    loggy.debug('AuthenticationController: inicio con Google');
+    error.value = '';
+    _isLoading.value = true;
+
+    try {
+      await repoAuthentication.startGoogleSignIn();
+      return true;
+    } catch (exception) {
+      loggy.error('AuthenticationController: error con Google $exception');
+      error.value = errorMessage(
+        exception,
+        fallback: 'No se pudo iniciar sesión con Google. Intenta de nuevo.',
       );
       return false;
     } finally {

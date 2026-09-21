@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../../../core/roble/roble_password_policy.dart';
 import '../../../../routes/app_routes.dart';
 import '../viewmodels/authentication_controller.dart';
+import '../widgets/google_sign_in_button.dart';
 
 /// Account registration.
 ///
@@ -159,6 +160,10 @@ class _SignUpPageState extends State<SignUpPage> {
                     : const Text('Crear cuenta'),
               ),
             ),
+            // Same button as the login screen: with Google there is no account to
+            // create separately, so the form above is only for whoever wants a
+            // password.
+            const GoogleSignInButton(),
           ],
         ),
       ),
