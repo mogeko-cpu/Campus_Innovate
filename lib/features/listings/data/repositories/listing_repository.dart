@@ -90,4 +90,21 @@ class ListingRepository implements IListingRepository {
         .toList();
   }
 
+  @override
+  Future<List<Listing>> getListingsByGroup(String groupId) async {
+    if (groupId.isEmpty) return const [];
+
+    final listings = await _source.getListings();
+
+    return listings.where((listing) => listing.groupId == groupId).toList();
+  }
+
+  @override
+  Future<List<JoinRequest>> getMyRequests(String applicantId) =>
+      _source.getRequestsByApplicant(applicantId);
+
+  @override
+  Future<void> deleteListing(String listingId) =>
+      _source.deleteListing(listingId);
+
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../../routes/app_routes.dart';
+import '../../../shell/ui/widgets/app_bottom_nav.dart';
 import '../../domain/models/listing_category.dart';
 import '../viewmodels/listings_view_model.dart';
 import '../widgets/listing_card.dart';
@@ -12,7 +13,11 @@ class ListingsPage extends GetView<ListingsViewModel> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Explorar proyectos')),
+      appBar: AppBar(
+        title: const Text('Explorar proyectos'),
+        automaticallyImplyLeading: false,
+      ),
+      bottomNavigationBar: const AppBottomNav(current: AppTab.explore),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           await Get.toNamed(AppRoutes.createListing);
@@ -88,6 +93,7 @@ class ListingsPage extends GetView<ListingsViewModel> {
 
                     return ListingCard(
                       listing: listing,
+                      stats: controller.statsOf(listing),
                       onTap: () async {
                         await Get.toNamed(AppRoutes.detailOf(listing.id));
                         await controller.load();

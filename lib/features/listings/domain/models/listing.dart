@@ -15,6 +15,17 @@ class Listing {
   final List<String> requiredSkills;
   final List<String> memberIds;
 
+  /// The group that owns the project, or empty for the projects published
+  /// before groups existed.
+  ///
+  /// Every like, view and comment is filed under this same id, which is what
+  /// keeps the activity of one group from ever being counted for another.
+  final String groupId;
+
+  /// Name of that group, copied in when the row is written so a card can show
+  /// it without a second read — ROBLE offers no join.
+  final String groupName;
+
   const Listing({
     required this.id,
     required this.title,
@@ -25,6 +36,8 @@ class Listing {
     required this.maxMembers,
     required this.requiredSkills,
     required this.memberIds,
+    this.groupId = '',
+    this.groupName = '',
   });
 
   /// A project filled in by the user but not yet stored, so without an [id].
@@ -39,6 +52,8 @@ class Listing {
     required String creatorName,
     required int maxMembers,
     required List<String> requiredSkills,
+    String groupId = '',
+    String groupName = '',
   }) {
     return Listing(
       id: '',
@@ -50,6 +65,8 @@ class Listing {
       maxMembers: maxMembers,
       requiredSkills: requiredSkills,
       memberIds: [creatorId],
+      groupId: groupId,
+      groupName: groupName,
     );
   }
 
@@ -59,6 +76,10 @@ class Listing {
   int get availableSlots => maxMembers - memberIds.length;
 
   bool get isFull => availableSlots <= 0;
+
+  /// False for the projects that predate groups. Screens fall back to "Sin
+  /// grupo" instead of hiding them: an old row is still a real project.
+  bool get belongsToGroup => groupId.isNotEmpty;
 
   Listing copyWith({
     String? id,
@@ -70,6 +91,8 @@ class Listing {
     int? maxMembers,
     List<String>? requiredSkills,
     List<String>? memberIds,
+    String? groupId,
+    String? groupName,
   }) {
     return Listing(
       id: id ?? this.id,
@@ -81,6 +104,8 @@ class Listing {
       maxMembers: maxMembers ?? this.maxMembers,
       requiredSkills: requiredSkills ?? this.requiredSkills,
       memberIds: memberIds ?? this.memberIds,
+      groupId: groupId ?? this.groupId,
+      groupName: groupName ?? this.groupName,
     );
   }
 }

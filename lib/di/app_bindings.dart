@@ -11,9 +11,17 @@ import '../features/auth/data/datasources/remote/roble_authentication_source.dar
 import '../features/auth/data/repositories/auth_repository.dart';
 import '../features/auth/domain/repositories/i_auth_repository.dart';
 import '../features/auth/ui/viewmodels/authentication_controller.dart';
+import '../features/groups/data/datasources/i_group_source.dart';
+import '../features/groups/data/datasources/remote/roble_group_source.dart';
+import '../features/groups/data/repositories/group_repository.dart';
+import '../features/groups/domain/repositories/i_group_repository.dart';
+import '../features/listings/data/datasources/i_engagement_source.dart';
 import '../features/listings/data/datasources/i_listing_source.dart';
+import '../features/listings/data/datasources/remote/roble_engagement_source.dart';
 import '../features/listings/data/datasources/remote/roble_listing_source.dart';
+import '../features/listings/data/repositories/engagement_repository.dart';
 import '../features/listings/data/repositories/listing_repository.dart';
+import '../features/listings/domain/repositories/i_engagement_repository.dart';
 import '../features/listings/domain/repositories/i_listing_repository.dart';
 import '../routes/app_routes.dart';
 
@@ -81,6 +89,18 @@ class AppBindings extends Bindings {
     Get.put<IListingSource>(RobleListingSource(client), permanent: true);
     Get.put<IListingRepository>(
       ListingRepository(Get.find<IListingSource>()),
+      permanent: true,
+    );
+
+    Get.put<IEngagementSource>(RobleEngagementSource(client), permanent: true);
+    Get.put<IEngagementRepository>(
+      EngagementRepository(Get.find<IEngagementSource>()),
+      permanent: true,
+    );
+
+    Get.put<IGroupSource>(RobleGroupSource(client), permanent: true);
+    Get.put<IGroupRepository>(
+      GroupRepository(Get.find<IGroupSource>()),
       permanent: true,
     );
 

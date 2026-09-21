@@ -20,6 +20,9 @@ class RobleSessionService implements ISessionService {
   @override
   String get currentUserName => _user.name;
 
+  @override
+  String get currentUserEmail => _user.email;
+
   /// Reading the identity without a session is a wiring bug, not a user
   /// situation: `main()` routes to login when there is none. Failing loudly beats
   /// returning an empty id that would be written into rows nobody can trace back.

@@ -25,10 +25,21 @@ abstract class IListingSource {
 
   Future<JoinRequest?> getRequestById(String id);
 
+  /// Every request one person sent, across projects. Backs the profile screen,
+  /// which is where someone looks to remember what they applied to.
+  Future<List<JoinRequest>> getRequestsByApplicant(String applicantId);
+
   Future<void> updateRequestStatus(String requestId, JoinRequestStatus status);
 
   /// Adds [userId] to the members of [listingId].
   ///
   /// Idempotent: adding someone who is already a member is not an error.
   Future<void> addMember({required String listingId, required String userId});
+
+  /// Removes the project and the rows that only made sense inside it: its
+  /// members and its join requests.
+  ///
+  /// Its likes, views and comments live in another source and are removed by
+  /// the caller — ROBLE has no cascades, so somebody has to do it by hand.
+  Future<void> deleteListing(String listingId);
 }

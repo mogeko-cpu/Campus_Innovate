@@ -83,8 +83,8 @@ void main() {
   testWidgets('a student can request to join an open project', (tester) async {
     await pumpApp(tester);
 
-    await tester.tap(find.widgetWithText(ActionCard, 'Explorar'));
-    await tester.pumpAndSettle();
+    // Exploring moved out of the home cards and into the bar at the bottom.
+    await tapText(tester, 'Explorar');
 
     await tapText(tester, 'Huerta Universitaria');
 

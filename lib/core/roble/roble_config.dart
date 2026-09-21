@@ -29,4 +29,16 @@ abstract final class RobleConfig {
   static const String listingsTable = 'listings';
   static const String listingMembersTable = 'listing_members';
   static const String joinRequestsTable = 'join_requests';
+
+  /// Groups: the standing teams that publish projects.
+  static const String groupsTable = 'groups';
+  static const String groupMembersTable = 'group_members';
+  static const String groupRequestsTable = 'group_requests';
+
+  /// What happens around a project: votes, visits and comments. Counters are
+  /// rows here and never columns on `listings`, because ROBLE has no conditional
+  /// writes and `likes = likes + 1` would lose votes when two people tap at once.
+  static const String listingReactionsTable = 'listing_reactions';
+  static const String listingViewsTable = 'listing_views';
+  static const String listingCommentsTable = 'listing_comments';
 }

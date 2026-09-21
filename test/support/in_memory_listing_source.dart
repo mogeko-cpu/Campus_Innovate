@@ -109,6 +109,19 @@ class InMemoryListingSource implements IListingSource {
   }
 
   @override
+  Future<List<JoinRequest>> getRequestsByApplicant(String applicantId) async {
+    return _requests
+        .where((request) => request.applicantId == applicantId)
+        .toList();
+  }
+
+  @override
+  Future<void> deleteListing(String listingId) async {
+    _listings.removeWhere((listing) => listing.id == listingId);
+    _requests.removeWhere((request) => request.listingId == listingId);
+  }
+
+  @override
   Future<JoinRequest?> getRequestById(String id) async {
     final index = _requests.indexWhere((request) => request.id == id);
 

@@ -26,4 +26,12 @@ abstract class IListingRepository {
   Future<List<Listing>> getMyListings(String userId);
 
   Future<List<Listing>> getJoinedListings(String userId);
+
+  /// Projects published by one group, newest first.
+  Future<List<Listing>> getListingsByGroup(String groupId);
+
+  /// Requests the user sent to other people's projects, newest first.
+  Future<List<JoinRequest>> getMyRequests(String applicantId);
+
+  Future<void> deleteListing(String listingId);
 }

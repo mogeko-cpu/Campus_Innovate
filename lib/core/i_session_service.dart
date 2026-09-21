@@ -6,4 +6,8 @@
 abstract class ISessionService {
   String get currentUserId;
   String get currentUserName;
+
+  /// The address the account was created with. Shown on the profile screen,
+  /// which is the only place the app needs it.
+  String get currentUserEmail;
 }

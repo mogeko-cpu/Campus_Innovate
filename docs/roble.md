@@ -27,8 +27,13 @@ flutter run --dart-define=ROBLE_CONTRACT_ID=otro_contrato_ab12cd34
 
 ## Esquema
 
-Tres tablas, creadas desde la Consola SQL de ROBLE. La columna `_id` la agrega
+Nueve tablas, creadas desde la Consola SQL de ROBLE. La columna `_id` la agrega
 ROBLE si falta, y siempre es `uuid`.
+
+Las tres primeras son las originales; las seis restantes se agregaron con
+[`sql/2026_grupos_y_valoraciones.sql`](sql/2026_grupos_y_valoraciones.sql), que
+es el archivo que hay que correr en la consola antes de abrir la app con estas
+funciones.
 
 ```sql
 CREATE TABLE listings (
@@ -81,6 +86,109 @@ Tres decisiones que conviene entender antes de cambiar algo:
 `status` es `text` y guarda el nombre del enum (`pending`, `accepted`,
 `rejected`). Un valor desconocido se lee como `pending`, el estado que deja la
 solicitud visible y accionable.
+
+### Grupos
+
+```sql
+CREATE TABLE groups (
+  _id UUID PRIMARY KEY NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  description text NOT NULL,
+  owner_id text NOT NULL,
+  owner_name text NOT NULL,
+  created_at timestamp NOT NULL
+);
+
+CREATE TABLE group_members (
+  _id UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+  group_id text NOT NULL,
+  user_id text NOT NULL,
+  user_name text NOT NULL,
+  joined_at timestamp NOT NULL,
+  UNIQUE (group_id, user_id)
+);
+
+CREATE TABLE group_requests (
+  _id UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+  group_id text NOT NULL,
+  applicant_id text NOT NULL,
+  applicant_name text NOT NULL,
+  message text NOT NULL,
+  status text NOT NULL,
+  created_at timestamp NOT NULL,
+  UNIQUE (group_id, applicant_id)
+);
+
+ALTER TABLE listings ADD COLUMN group_id text;
+ALTER TABLE listings ADD COLUMN group_name text;
+```
+
+Los integrantes de un grupo son filas por la misma razón que los de un proyecto:
+sin transacciones, un arreglo `jsonb` obligaría a leer-modificar-escribir y dos
+aceptaciones simultáneas se pisarían.
+
+`group_id` en `listings` puede quedar nulo: las filas publicadas antes de que
+existieran los grupos siguen siendo proyectos reales, y las pantallas las
+muestran como "Publicado sin grupo" en lugar de esconderlas. `group_name` viaja
+copiado porque ROBLE no hace `JOIN`, así que una tarjeta que mostrara el nombre
+del grupo necesitaría una lectura por proyecto.
+
+**Eliminar un grupo no elimina sus proyectos.** La app se niega mientras el grupo
+tenga alguno: otras personas se postularon a esos proyectos y pueden estar en sus
+equipos, así que borrarlos como efecto secundario de ordenar un grupo sería una
+sorpresa. El dueño elimina primero cada proyecto, desde la pantalla del proyecto.
+
+### Valoraciones, vistas y comentarios
+
+```sql
+CREATE TABLE listing_reactions (
+  _id UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+  listing_id text NOT NULL,
+  group_id text NOT NULL,
+  user_id text NOT NULL,
+  value int4 NOT NULL,
+  created_at timestamp NOT NULL,
+  UNIQUE (listing_id, user_id)
+);
+
+CREATE TABLE listing_views (
+  _id UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+  listing_id text NOT NULL,
+  group_id text NOT NULL,
+  user_id text NOT NULL,
+  viewed_at timestamp NOT NULL,
+  UNIQUE (listing_id, user_id)
+);
+
+CREATE TABLE listing_comments (
+  _id UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+  listing_id text NOT NULL,
+  group_id text NOT NULL,
+  author_id text NOT NULL,
+  author_name text NOT NULL,
+  body text NOT NULL,
+  created_at timestamp NOT NULL
+);
+```
+
+Tres decisiones que conviene entender antes de cambiar algo aquí:
+
+- **Los contadores son filas, no columnas.** Un `likes int4` en `listings`
+  obligaría a `likes = likes + 1`, que sin escrituras condicionales es
+  leer-modificar-escribir: dos personas votando en el mismo segundo perderían un
+  voto. Contar filas no se puede desincronizar.
+- **`value` es `1` o `-1`**, así el puntaje del ranking es una suma y nunca una
+  segunda consulta. El `UNIQUE (listing_id, user_id)` es lo que impide votar dos
+  veces; cambiar de opinión es un `UPDATE` de la fila que ya es tuya, y quitar el
+  voto es borrarla.
+- **Las vistas son únicas por persona.** Volver a abrir un proyecto no suma: la
+  fila ya existe y el `UNIQUE` la rechaza. Eso también evita que la tabla crezca
+  sin límite, que es lo que pasaría guardando cada visita.
+
+`group_id` se repite en las tres tablas a propósito. Es redundante con
+`listings.group_id`, pero `read` solo filtra por igualdad: con esa columna, una
+pantalla de grupo puede leer todos los comentarios de sus proyectos en una sola
+petición, y la actividad de un grupo nunca se puede contar para otro.
 
 ---
 
@@ -147,7 +255,8 @@ En [`lib/core/roble/`](../lib/core/roble):
 
 | Archivo | Qué hace |
 |---|---|
-| `roble_config.dart` | Host, contrato y nombres de tabla. Un `--dart-define` los cambia. |
+| `roble_config.dart` | Host, contrato y nombres de las nueve tablas. Un `--dart-define` los cambia. |
+| `roble_duplicate.dart` | `isDuplicateRow()`: si el error de ROBLE es una violación de `UNIQUE`. Tres fuentes dependen de la misma lectura del mensaje de PostgreSQL. |
 | `roble_client.dart` | Transporte: arma la petición, pone el `Bearer`, traduce cada código de estado y **renueva el token una sola vez** ante un 401 antes de reintentar. Sin imports de Flutter, para que `tool/seed_roble.dart` lo pueda usar. |
 | `roble_session.dart` | Tokens y usuario en memoria, espejados en almacenamiento cifrado. Borra de paso las llaves que dejó la plantilla, que guardaba contraseñas en texto plano. |
 | `roble_user.dart` | La cuenta según `GET /me`. `userId` gana sobre `id`: es el valor que va en `creator_id`. |
@@ -159,6 +268,8 @@ Las fuentes de datos que hablan con ROBLE:
 
 - [`features/auth/data/datasources/remote/roble_authentication_source.dart`](../lib/features/auth/data/datasources/remote/roble_authentication_source.dart)
 - [`features/listings/data/datasources/remote/roble_listing_source.dart`](../lib/features/listings/data/datasources/remote/roble_listing_source.dart)
+- [`features/listings/data/datasources/remote/roble_engagement_source.dart`](../lib/features/listings/data/datasources/remote/roble_engagement_source.dart)
+- [`features/groups/data/datasources/remote/roble_group_source.dart`](../lib/features/groups/data/datasources/remote/roble_group_source.dart)
 
 Todo se arma en [`lib/di/app_bindings.dart`](../lib/di/app_bindings.dart), que
 además decide la pantalla inicial: `home` si hay sesión guardada, `login` si no.
