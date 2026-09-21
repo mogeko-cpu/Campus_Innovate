@@ -3,15 +3,21 @@ import 'package:get/get.dart';
 import '../../../../core/error_message.dart';
 import '../../../../core/i_session_service.dart';
 import '../../domain/models/listing.dart';
+import '../../domain/models/listing_stats.dart';
+import '../../domain/repositories/i_engagement_repository.dart';
 import '../../domain/repositories/i_listing_repository.dart';
 
 class ListingsViewModel extends GetxController {
   final IListingRepository _repository;
+  final IEngagementRepository _engagement;
   final ISessionService _session;
 
-  ListingsViewModel(this._repository, this._session);
+  ListingsViewModel(this._repository, this._engagement, this._session);
 
   final RxList<Listing> _all = <Listing>[].obs;
+
+  /// Counters by project id, so the cards show them without a read each.
+  final RxMap<String, ListingStats> stats = <String, ListingStats>{}.obs;
   final RxBool isLoading = false.obs;
   final RxnString error = RxnString();
   final RxnString selectedCategory = RxnString();
@@ -43,6 +49,9 @@ class ListingsViewModel extends GetxController {
       error.value = null;
 
       _all.assignAll(await _repository.getListings());
+      stats.assignAll(
+        await _engagement.getStats(userId: _session.currentUserId),
+      );
     } catch (failure) {
       error.value = errorMessage(
         failure,
@@ -59,4 +68,7 @@ class ListingsViewModel extends GetxController {
 
   bool isMember(Listing listing) =>
       listing.memberIds.contains(_session.currentUserId);
+
+  ListingStats statsOf(Listing listing) =>
+      stats[listing.id] ?? ListingStats.empty;
 }

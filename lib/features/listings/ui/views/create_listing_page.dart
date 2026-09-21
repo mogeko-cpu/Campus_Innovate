@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../../routes/app_routes.dart';
 import '../../domain/models/listing_category.dart';
 import '../viewmodels/create_listing_view_model.dart';
 
@@ -119,6 +120,39 @@ class _CreateListingPageState extends State<CreateListingPage> {
               },
             ),
             const SizedBox(height: 24),
+            _Label(text: 'Grupo que publica'),
+            const SizedBox(height: 8),
+            Obx(() {
+              if (_viewModel.isLoadingGroups.value) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: LinearProgressIndicator(),
+                );
+              }
+
+              if (_viewModel.hasNoGroups) {
+                return _NoGroups(
+                  onCreate: () async {
+                    await Get.toNamed(AppRoutes.createGroup);
+                    await _viewModel.loadGroups();
+                  },
+                );
+              }
+
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final group in _viewModel.myGroups)
+                    ChoiceChip(
+                      label: Text(group.name),
+                      selected: _viewModel.selectedGroup.value?.id == group.id,
+                      onSelected: (_) => _viewModel.selectGroup(group),
+                    ),
+                ],
+              );
+            }),
+            const SizedBox(height: 24),
             _Label(text: 'Categoría'),
             const SizedBox(height: 8),
             Obx(
@@ -200,7 +234,10 @@ class _CreateListingPageState extends State<CreateListingPage> {
             const SizedBox(height: 32),
             Obx(
               () => FilledButton(
-                onPressed: _viewModel.isSaving.value ? null : _submit,
+                onPressed:
+                    _viewModel.isSaving.value || _viewModel.hasNoGroups
+                        ? null
+                        : _submit,
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(52),
                 ),
@@ -215,6 +252,47 @@ class _CreateListingPageState extends State<CreateListingPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Shown when the person has no group yet: publishing needs one, and the way
+/// out of that is one tap away instead of somewhere else in the app.
+class _NoGroups extends StatelessWidget {
+  final Future<void> Function() onCreate;
+
+  const _NoGroups({required this.onCreate});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Los proyectos se publican a nombre de un grupo y todavía no '
+            'tienes ninguno.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.tonalIcon(
+            onPressed: onCreate,
+            icon: const Icon(Icons.add),
+            label: const Text('Crear un grupo'),
+          ),
+        ],
       ),
     );
   }

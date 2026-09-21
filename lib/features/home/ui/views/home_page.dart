@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../../../routes/app_routes.dart';
 import '../../../auth/ui/viewmodels/authentication_controller.dart';
 import '../../../listings/ui/widgets/listing_card.dart';
+import '../../../shell/ui/widgets/app_bottom_nav.dart';
 import '../viewmodels/home_view_model.dart';
 import '../widgets/action_card.dart';
 
@@ -65,37 +66,18 @@ class HomePage extends GetView<HomeViewModel> {
                   onLogOut: _confirmLogOut,
                 ),
                 const SizedBox(height: 24),
-                IntrinsicHeight(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(
-                        child: ActionCard(
-                          icon: Icons.add_circle_outline,
-                          title: 'Publicar idea',
-                          subtitle: 'Arma tu equipo',
-                          filled: true,
-                          onTap: () => _openAndRefresh(AppRoutes.createListing),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ActionCard(
-                          icon: Icons.explore_outlined,
-                          title: 'Explorar',
-                          subtitle: 'Únete a un proyecto',
-                          onTap: () => _openAndRefresh(AppRoutes.listings),
-                        ),
-                      ),
-                    ],
-                  ),
+                // Only one card here now: exploring lives in the bar at the
+                // bottom, and offering the same trip twice made the two ways in
+                // look like two different places.
+                ActionCard(
+                  icon: Icons.add_circle_outline,
+                  title: 'Publicar idea',
+                  subtitle: 'Arma tu equipo',
+                  filled: true,
+                  onTap: () => _openAndRefresh(AppRoutes.createListing),
                 ),
                 const SizedBox(height: 32),
-                _SectionHeader(
-                  title: 'Ideas destacadas',
-                  actionLabel: 'Ver todas',
-                  onAction: () => _openAndRefresh(AppRoutes.listings),
-                ),
+                const _SectionHeader(title: 'Ideas destacadas'),
                 const SizedBox(height: 14),
                 if (controller.isLoading.value)
                   const Padding(
@@ -112,6 +94,7 @@ class HomePage extends GetView<HomeViewModel> {
                   for (final listing in controller.featuredListings)
                     ListingCard(
                       listing: listing,
+                      stats: controller.statsOf(listing),
                       onTap: () => _openAndRefresh(
                         AppRoutes.detailOf(listing.id),
                       ),
@@ -127,6 +110,7 @@ class HomePage extends GetView<HomeViewModel> {
                   for (final listing in controller.myListings)
                     ListingCard(
                       listing: listing,
+                      stats: controller.statsOf(listing),
                       onTap: () => _openAndRefresh(
                         AppRoutes.detailOf(listing.id),
                       ),
@@ -136,33 +120,7 @@ class HomePage extends GetView<HomeViewModel> {
           ),
         ),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: 0,
-        onDestinationSelected: (index) {
-          if (index == 1) {
-            _openAndRefresh(AppRoutes.listings);
-          }
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Inicio',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.explore_outlined),
-            label: 'Explorar',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.work_outline),
-            label: 'Proyectos',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            label: 'Perfil',
-          ),
-        ],
-      ),
+      bottomNavigationBar: const AppBottomNav(current: AppTab.home),
     );
   }
 }
@@ -236,29 +194,19 @@ class _Greeting extends StatelessWidget {
 
 class _SectionHeader extends StatelessWidget {
   final String title;
-  final String? actionLabel;
-  final VoidCallback? onAction;
 
-  const _SectionHeader({
-    required this.title,
-    this.actionLabel,
-    this.onAction,
-  });
+  /// No trailing "Ver todas" any more: the whole catalogue is one tap away in
+  /// the bar at the bottom, and a second door to the same room only made the
+  /// screen busier.
+  const _SectionHeader({required this.title});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          title,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-        ),
-        if (actionLabel != null)
-          TextButton(onPressed: onAction, child: Text(actionLabel!)),
-      ],
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
     );
   }
 }

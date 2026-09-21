@@ -5,7 +5,8 @@ import '../../domain/models/join_request.dart';
 import '../../domain/models/join_request_status.dart';
 import '../../domain/repositories/i_listing_repository.dart';
 
-/// Backs the creator-facing request inbox. Not routed yet.
+/// Backs the creator-facing request inbox, which lives inside the project's
+/// detail screen: whoever published a project decides there who joins it.
 class RequestsViewModel extends GetxController {
   final IListingRepository _repository;
 

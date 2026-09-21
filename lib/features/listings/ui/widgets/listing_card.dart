@@ -1,15 +1,26 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/models/listing.dart';
+import '../../domain/models/listing_stats.dart';
+import 'listing_stats_row.dart';
 
 class ListingCard extends StatelessWidget {
   final Listing listing;
   final VoidCallback onTap;
 
+  /// Counters to show under the card. Null on the screens that do not load
+  /// them, so the card keeps working without the engagement tables.
+  final ListingStats? stats;
+
+  /// Shown before the category, for the position badge of the ranking.
+  final Widget? leading;
+
   const ListingCard({
     super.key,
     required this.listing,
     required this.onTap,
+    this.stats,
+    this.leading,
   });
 
   @override
@@ -29,6 +40,10 @@ class ListingCard extends StatelessWidget {
             children: [
               Row(
                 children: [
+                  if (leading != null) ...[
+                    leading!,
+                    const SizedBox(width: 10),
+                  ],
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
@@ -81,6 +96,34 @@ class ListingCard extends StatelessWidget {
                       ),
                   ],
                 ),
+              ],
+              if (listing.belongsToGroup) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.groups_outlined,
+                      size: 15,
+                      color: colors.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        listing.groupName.isEmpty
+                            ? 'Grupo del campus'
+                            : listing.groupName,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              if (stats != null) ...[
+                const SizedBox(height: 12),
+                ListingStatsRow(stats: stats!),
               ],
               const SizedBox(height: 14),
               Row(

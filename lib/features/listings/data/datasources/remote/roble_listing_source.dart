@@ -78,6 +78,8 @@ class RobleListingSource implements IListingSource {
       'creator_name': listing.creatorName,
       'max_members': listing.maxMembers,
       'required_skills': listing.requiredSkills,
+      'group_id': listing.groupId,
+      'group_name': listing.groupName,
       'created_at': _now(),
     });
 
@@ -146,6 +148,19 @@ class RobleListingSource implements IListingSource {
   }
 
   @override
+  Future<List<JoinRequest>> getRequestsByApplicant(String applicantId) async {
+    final rows = await _client.read(
+      RobleConfig.joinRequestsTable,
+      filters: {'applicant_id': applicantId},
+    );
+
+    // Newest first: the last thing you applied to is the one you are waiting on.
+    rows.sort((a, b) => _dateOf(b['created_at']).compareTo(_dateOf(a['created_at'])));
+
+    return rows.map(_requestFrom).whereType<JoinRequest>().toList();
+  }
+
+  @override
   Future<JoinRequest?> getRequestById(String id) async {
     if (!RobleClient.isRowId(id)) return null;
 
@@ -195,7 +210,51 @@ class RobleListingSource implements IListingSource {
     await _addMemberRow(listingId: listingId, userId: userId);
   }
 
+  @override
+  Future<void> deleteListing(String listingId) async {
+    if (!RobleClient.isRowId(listingId)) {
+      throw ListingException('El proyecto $listingId ya no existe.');
+    }
+
+    // Children first, project last, because there are no transactions: a failure
+    // halfway leaves the project in place, still listed and still deletable. The
+    // opposite order would leave members and requests pointing at a project
+    // nobody can open.
+    await _deleteRowsWhere(
+      RobleConfig.listingMembersTable,
+      'listing_id',
+      listingId,
+    );
+    await _deleteRowsWhere(
+      RobleConfig.joinRequestsTable,
+      'listing_id',
+      listingId,
+    );
+
+    await _client.delete(
+      tableName: RobleConfig.listingsTable,
+      idValue: listingId,
+    );
+  }
+
   // ------------------------------------------------------------- helpers
+
+  /// Deletes every row of [tableName] whose [column] equals [value]. ROBLE
+  /// deletes by `_id` only, so this is a read followed by one delete per row.
+  Future<void> _deleteRowsWhere(
+    String tableName,
+    String column,
+    String value,
+  ) async {
+    final rows = await _client.read(tableName, filters: {column: value});
+
+    for (final row in rows) {
+      final id = row['_id']?.toString();
+      if (id == null || id.isEmpty) continue;
+
+      await _client.delete(tableName: tableName, idValue: id);
+    }
+  }
 
   Future<void> _addMemberRow({
     required String listingId,
@@ -277,6 +336,8 @@ class RobleListingSource implements IListingSource {
       maxMembers: _intOf(row['max_members'], fallback: 1),
       requiredSkills: _stringsOf(row['required_skills']),
       memberIds: membersByListing[id] ?? const [],
+      groupId: row['group_id']?.toString() ?? '',
+      groupName: row['group_name']?.toString() ?? '',
     );
   }
 
