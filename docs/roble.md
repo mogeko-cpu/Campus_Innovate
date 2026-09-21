@@ -249,13 +249,99 @@ mensaje que ve el usuario los menciona.
 
 ---
 
+## Iniciar sesión con Google
+
+ROBLE hace de intermediario con Google: **el `client_secret` vive en la consola de
+ROBLE, no en la app**. Eso es lo que hace viable el flujo en un proyecto que se
+compila para web y para Android — un secreto compilado en el binario no es un
+secreto.
+
+La aplicación OAuth está creada en Google Cloud (proyecto *Campus Innovate*) y
+registrada en la consola de ROBLE, en **Autenticación → Proveedores → Google**.
+El `redirect_uri` que Google tiene autorizado es el de ROBLE, no el de la app:
+
+```
+https://roble-api.openlab.uninorte.edu.co/auth/google/callback
+```
+
+> La documentación de ROBLE imprime ese valor como
+> `roble-api.roble.openlab.uninorte.edu.co`. Ese host no resuelve; el correcto es
+> el de arriba, que es el que la propia consola muestra en su campo de solo
+> lectura.
+
+### Los cuatro pasos
+
+| | Quién | Qué pasa |
+|---|---|---|
+| 1 | App | `POST /auth/{contrato}/auth/google/start` con `{"redirect":"default"}` → **201** `{url, state}`. `url` es la de `accounts.google.com`, ya con el `client_id`, el `scope` (`openid email profile`) y el PKCE que ROBLE genera. |
+| 2 | Navegador | La persona autoriza en Google, que devuelve el código a `…/auth/google/callback`. |
+| 3 | ROBLE | Canjea ese código contra Google **con las credenciales del proyecto** y redirige al destino registrado con `?code=…`, o con `?error=…&error_description=…` si la persona canceló. |
+| 4 | App | `POST /auth/{contrato}/auth/token` con `{"code":"…"}` → `{accessToken, refreshToken}`, y luego `GET /me` para saber quién entró. |
+
+Cuatro detalles que no están en la documentación de ROBLE y se determinaron
+sondeando la API:
+
+- **`redirect` es un nombre, no una URL.** La lista de direcciones permitidas vive
+  en la consola; la app solo nombra una de ellas, así que ninguna compilación
+  puede mandar a nadie a un destino que el dueño del proyecto no aprobó. El
+  nombre está en `RobleConfig.socialRedirect` y se cambia con
+  `--dart-define=ROBLE_SOCIAL_REDIRECT=otro`. Hoy hay uno: `default` →
+  `http://localhost:5123/`.
+- **Los parámetros van en el cuerpo**, no en la query, para que no queden en los
+  logs del servidor, del proxy ni en el historial del navegador.
+- **El código es de un solo uso**: enviarlo dos veces responde 400 «Código
+  inválido o expirado». Por eso la app lo borra de la dirección con
+  `history.replaceState` *antes* de gastarlo — si no, un F5 convertiría un inicio
+  exitoso en un error.
+- **El canje va por la ruta del contrato** (`/auth/{contrato}/auth/token`) y no
+  por una del proveedor: el código ya ata el flujo al contrato. Existe también un
+  `/auth/google/exchange` sin contrato, pero es el que usa la consola para sí
+  misma.
+
+### No hay cuenta que crear
+
+Google afirma si la dirección está verificada, así que ROBLE enlaza el inicio con
+la cuenta que ya tenga ese correo, o la crea si no existe. **Entrar y registrarse
+son el mismo acto**, y por eso las pantallas de inicio de sesión y de registro
+ofrecen el mismo botón, sin distinguir entre «entrar con Google» y «crear cuenta
+con Google».
+
+Un lado bueno de paso: quien entre con Google no gasta nada del presupuesto de
+`login` ni de `signup`, que son los dos límites apretados.
+
+### Por ahora solo en web
+
+`default` apunta a la dirección de la app web, la única registrada, así que solo
+la compilación web puede irse y volver. En las demás plataformas el botón no
+lanza ninguna petición: responde con `SocialLoginUnsupported` y una frase que lo
+dice. Habilitarlas es registrar otro destino en la consola (un *deep link*) y
+darle su nombre por `--dart-define`; el código de la app no cambia.
+
+El reparto:
+
+| Archivo | Qué hace |
+|---|---|
+| `social/social_browser.dart` | Export condicional: elige el stub o la versión web en tiempo de compilación. |
+| `social/social_browser_web.dart` | `dart:js_interop` sobre `window.location` y `window.history`. Sin dependencias nuevas y sin `dart:html`. |
+| `social/social_browser_stub.dart` | Lo que se compila fuera de la web: `isSupported == false`. |
+| `social/social_login_unsupported.dart` | El mensaje para esa plataforma. No entra en `RobleException`, que es `sealed`: esto no es una falla de ROBLE. |
+
+El regreso se atiende en
+[`app_bindings.dart`](../lib/di/app_bindings.dart) **antes** de elegir la primera
+ruta, así que la app abre ya con sesión en vez de mostrar el formulario un
+instante y saltar. Si el regreso trae un error no hay a quién decírselo todavía:
+el mensaje viaja al `AuthenticationController` y la pantalla de login lo muestra
+en su primer frame.
+
+---
+
 ## Las clases
 
 En [`lib/core/roble/`](../lib/core/roble):
 
 | Archivo | Qué hace |
 |---|---|
-| `roble_config.dart` | Host, contrato y nombres de las nueve tablas. Un `--dart-define` los cambia. |
+| `roble_config.dart` | Host, contrato, nombre del destino de regreso del inicio social y nombres de las nueve tablas. Un `--dart-define` los cambia. |
 | `roble_duplicate.dart` | `isDuplicateRow()`: si el error de ROBLE es una violación de `UNIQUE`. Tres fuentes dependen de la misma lectura del mensaje de PostgreSQL. |
 | `roble_client.dart` | Transporte: arma la petición, pone el `Bearer`, traduce cada código de estado y **renueva el token una sola vez** ante un 401 antes de reintentar. Sin imports de Flutter, para que `tool/seed_roble.dart` lo pueda usar. |
 | `roble_session.dart` | Tokens y usuario en memoria, espejados en almacenamiento cifrado. Borra de paso las llaves que dejó la plantilla, que guardaba contraseñas en texto plano. |
@@ -263,6 +349,7 @@ En [`lib/core/roble/`](../lib/core/roble):
 | `roble_exception.dart` | Una excepción por falla, con mensaje en español listo para mostrar. |
 | `roble_password_policy.dart` | La política de contraseñas, verificada antes de la petición. |
 | `roble_session_service.dart` | `ISessionService` sobre la sesión de ROBLE: quién es el usuario actual para el resto de la app. |
+| `social/` | El inicio de sesión con Google: a dónde se va la app y cómo vuelve. Ver la sección de arriba. |
 
 Las fuentes de datos que hablan con ROBLE:
 
@@ -318,8 +405,14 @@ dejarían filas para que la siguiente corrida se tropiece con ellas.
   probar qué pasa en el segundo `INSERT`.
 - [`test/core/roble/roble_client_test.dart`](../test/core/roble/roble_client_test.dart)
   usa `MockClient` para lo que es fácil equivocar y difícil de notar: el refresh
-  único, las dos formas en que llega una lista de filas, el 429 y el guardia del
-  UUID.
+  único, las dos formas en que llega una lista de filas, el 429, el guardia del
+  UUID y los dos pasos del inicio con Google — que `start` nombre un destino y no
+  una URL, que el canje vaya a la ruta del contrato, y que un código gastado no
+  deje media sesión escrita.
+- [`test/features/auth/google_sign_in_test.dart`](../test/features/auth/google_sign_in_test.dart)
+  corre en la VM, que es justo el caso sin navegador: el botón responde
+  `SocialLoginUnsupported` **sin gastar una petición**, y un arranque normal no se
+  confunde con un regreso de Google.
 - [`test/features/listings/roble_listing_source_test.dart`](../test/features/listings/roble_listing_source_test.dart)
   cubre lo que la fuente hace y ROBLE no: agrupar integrantes, ordenar, deshacer
   un proyecto a medio escribir y tratar un duplicado como éxito.

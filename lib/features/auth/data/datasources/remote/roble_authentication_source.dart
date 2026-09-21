@@ -2,6 +2,8 @@ import '../../../../../core/roble/roble_client.dart';
 import '../../../../../core/roble/roble_exception.dart';
 import '../../../../../core/roble/roble_password_policy.dart';
 import '../../../../../core/roble/roble_session.dart';
+import '../../../../../core/roble/social/social_browser.dart';
+import '../../../../../core/roble/social/social_login_unsupported.dart';
 import '../../../domain/models/authentication_user.dart';
 import 'i_authentication_source.dart';
 
@@ -23,6 +25,12 @@ class RobleAuthenticationSource implements IAuthenticationSource {
   /// when it is created — and the second answer cannot have changed. Remembering
   /// it saves a request that would otherwise be spent on every launch.
   bool _verified = false;
+
+  /// Set once the address has been read for a provider's code.
+  ///
+  /// The code is single-use, so looking twice can only find one that ROBLE has
+  /// already invalidated and turn a working session into an error message.
+  bool _socialCodeRead = false;
 
   @override
   Future<bool> login(AuthenticationUser user) async {
@@ -93,6 +101,67 @@ class RobleAuthenticationSource implements IAuthenticationSource {
       password: user.password,
       name: user.name.trim(),
     );
+
+    return true;
+  }
+
+  /// Sends the person to Google.
+  ///
+  /// There is no password to check and no account to create here: ROBLE receives
+  /// Google's answer, and because Google states whether the address is verified,
+  /// it links the login to an account with that e-mail if one already exists, or
+  /// creates it otherwise. That is why the login and the signup screens offer the
+  /// very same button.
+  @override
+  Future<void> startGoogleSignIn() async {
+    // Asked before the request: the flow would otherwise cost a round trip only
+    // to fail at the last step, with the account already waiting on Google's side.
+    if (!SocialBrowser.isSupported) {
+      throw const SocialLoginUnsupported();
+    }
+
+    final start = await _client.startSocialLogin();
+
+    SocialBrowser.goTo(start.url);
+  }
+
+  /// Reads the address this launch started with and finishes the flow if it is a
+  /// return from Google.
+  ///
+  /// ROBLE sends the browser back to the registered destination with `?code=…`,
+  /// or with `?error=…&error_description=…` when the person cancelled or Google
+  /// refused. Both are dropped from the address before anything else happens: the
+  /// code is single-use, so leaving it there would turn a reload into an error
+  /// about a code that was in fact spent successfully.
+  @override
+  Future<bool> completeGoogleSignIn() async {
+    if (_socialCodeRead) return false;
+    _socialCodeRead = true;
+
+    final query = Uri.base.queryParameters;
+    final error = query['error'];
+    final code = query['code'];
+
+    if ((error == null || error.isEmpty) && (code == null || code.isEmpty)) {
+      return false;
+    }
+
+    SocialBrowser.dropQuery();
+
+    if (error != null && error.isNotEmpty) {
+      final detail = query['error_description']?.trim();
+
+      throw RobleUnauthorizedException(
+        detail == null || detail.isEmpty
+            ? 'Google no autorizó el inicio de sesión ($error).'
+            : 'Google no autorizó el inicio de sesión: $detail',
+      );
+    }
+
+    await _client.exchangeSocialCode(code!);
+
+    // ROBLE just issued the token, so there is nothing to verify.
+    _verified = true;
 
     return true;
   }

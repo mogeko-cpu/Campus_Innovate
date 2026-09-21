@@ -92,12 +92,82 @@ class RobleClient {
       authenticated: false,
     );
 
+    return _openSession(_asMap(payload), flow: 'el inicio de sesión');
+  }
+
+  /// Opens the provider's flow and returns where to send the person.
+  ///
+  /// [redirect] is the **name** of a return destination registered in the ROBLE
+  /// console, never a URL: the console keeps the list of allowed addresses, so an
+  /// app cannot send anyone back to a destination the project owner did not
+  /// approve. [extra] is stored on the account like `signup`'s, and travels in the
+  /// body instead of the query so it does not reach the server's logs, the proxy's
+  /// or the browser's history.
+  ///
+  /// `state` comes back for the caller to keep if it wants to check the return;
+  /// ROBLE validates it on its own at the callback, so the app can ignore it.
+  Future<({String url, String state})> startSocialLogin({
+    String provider = 'google',
+    String redirect = RobleConfig.socialRedirect,
+    Map<String, dynamic>? extra,
+  }) async {
+    final payload = await _send(
+      method: 'POST',
+      uri: _authUri('auth/$provider/start'),
+      body: {'redirect': redirect, 'extra': ?extra},
+      authenticated: false,
+    );
+
     final json = _asMap(payload);
+    final url = json['url']?.toString();
+
+    if (url == null || url.isEmpty) {
+      throw const RobleServerException(
+        'ROBLE no dijo a dónde enviar el inicio de sesión con el proveedor.',
+        201,
+      );
+    }
+
+    return (url: url, state: json['state']?.toString() ?? '');
+  }
+
+  /// Turns the one-time code the provider left on the return address into a
+  /// session.
+  ///
+  /// The code is the whole credential — it identifies the account, the project
+  /// and the provider — so nothing else travels, and it is valid **once**:
+  /// sending it twice answers 400, which is why the caller drops it from the
+  /// address before spending it.
+  ///
+  /// Note that this route is the project's (`/auth/{contract}/auth/token`) and not
+  /// the provider's: the flow is already tied to the contract by the code.
+  Future<RobleUser> exchangeSocialCode(String code) async {
+    final payload = await _send(
+      method: 'POST',
+      uri: _authUri('auth/token'),
+      body: {'code': code},
+      authenticated: false,
+    );
+
+    return _openSession(
+      _asMap(payload),
+      flow: 'el inicio de sesión con el proveedor',
+    );
+  }
+
+  /// Stores the tokens of a session that ROBLE just issued and returns its owner.
+  ///
+  /// `login` and the social exchange answer with the same pair of tokens and
+  /// neither includes the account, so both end here.
+  Future<RobleUser> _openSession(
+    Map<String, dynamic> json, {
+    required String flow,
+  }) async {
     final accessToken = json['accessToken']?.toString();
 
     if (accessToken == null || accessToken.isEmpty) {
-      throw const RobleServerException(
-        'ROBLE aceptó el inicio de sesión pero no devolvió el token.',
+      throw RobleServerException(
+        'ROBLE aceptó $flow pero no devolvió el token.',
         200,
       );
     }

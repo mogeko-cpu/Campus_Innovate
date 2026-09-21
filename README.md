@@ -55,6 +55,25 @@ ROBLE: puedes crearla desde *Crear cuenta* en la app o desde la consola de
 ROBLE. La sesión queda guardada cifrada, así que el siguiente arranque entra
 directo.
 
+### Continuar con Google
+
+Las dos pantallas — entrar y registrarse — ofrecen además **Continuar con
+Google**, porque con Google no hay cuenta que crear aparte: ROBLE enlaza el
+inicio con la cuenta que ya tenga ese correo, o la crea. El `client_secret` vive
+en la consola de ROBLE y no en la app.
+
+**Funciona en la compilación web.** En Android y escritorio el botón avisa que
+por ahora no, sin gastar una petición: el único destino de regreso registrado en
+la consola de ROBLE es la dirección de la app web. Si registras otro (un *deep
+link*), dale su nombre a la app y ya:
+
+```bash
+flutter run --dart-define=ROBLE_SOCIAL_REDIRECT=nombre-del-destino
+```
+
+El flujo completo, y los cuatro detalles de la API de ROBLE que no están
+documentados, en [`docs/roble.md`](docs/roble.md#iniciar-sesión-con-google).
+
 ### Sembrar los proyectos de demostración
 
 Una base vacía muestra una pantalla vacía. Para insertar los tres proyectos de
@@ -143,6 +162,7 @@ lib/
 │   ├── i_session_service.dart # Contrato del usuario en sesión
 │   ├── i_local_preferences.dart
 │   └── roble/                 # Cliente, sesión y errores de ROBLE
+│       └── social/            # Inicio con Google: irse al proveedor y volver
 ├── di/
 │   └── app_bindings.dart      # Raíz de composición (singletons permanentes)
 ├── routes/
@@ -171,11 +191,11 @@ postulante como miembro.
 (publicar / explorar), proyectos destacados y los proyectos del usuario. Recarga
 su estado cada vez que el usuario vuelve de otra pantalla.
 
-**`auth`** — inicio de sesión y registro con cuentas reales de ROBLE. La app abre
-aquí cuando no hay sesión guardada, y el saludo del menú principal trae el botón
-para cerrarla. La política de contraseñas de ROBLE se verifica antes de pedir la
-cuenta: `signup` permite 5 intentos por hora por IP y una contraseña rechazada
-gasta uno igual.
+**`auth`** — inicio de sesión y registro con cuentas reales de ROBLE, o con
+Google. La app abre aquí cuando no hay sesión guardada, y el saludo del menú
+principal trae el botón para cerrarla. La política de contraseñas de ROBLE se
+verifica antes de pedir la cuenta: `signup` permite 5 intentos por hora por IP y
+una contraseña rechazada gasta uno igual.
 
 ### Navegación
 
@@ -237,4 +257,7 @@ cliente (`test/core/roble/`) y la fuente de datos
   de repositorio, pero todavía no hay pantalla para el creador del proyecto.
 - **Sin recuperar contraseña.** El cliente de ROBLE lo soporta; ninguna pantalla
   lo llama todavía.
+- **Continuar con Google, solo en web.** El único destino de regreso registrado en
+  la consola de ROBLE es la dirección de la app web; en las demás plataformas el
+  botón avisa en vez de intentarlo.
 - Las pestañas **Proyectos** y **Perfil** de la barra inferior aún no navegan.
