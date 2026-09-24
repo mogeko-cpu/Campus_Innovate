@@ -1,5 +1,7 @@
 import 'package:campus_innovate/core/i_session_service.dart';
+import 'package:campus_innovate/core/theme_controller.dart';
 import 'package:campus_innovate/features/groups/data/datasources/i_group_source.dart';
+import 'package:flutter/material.dart';
 import 'package:campus_innovate/features/groups/data/repositories/group_repository.dart';
 import 'package:campus_innovate/features/groups/domain/repositories/i_group_repository.dart';
 import 'package:campus_innovate/features/listings/data/datasources/i_engagement_source.dart';
@@ -13,6 +15,7 @@ import 'package:get/get.dart';
 import 'in_memory_engagement_source.dart';
 import 'in_memory_group_source.dart';
 import 'in_memory_listing_source.dart';
+import 'memory_preferences.dart';
 
 /// The app's graph with storage and identity replaced by doubles.
 ///
@@ -34,6 +37,10 @@ class TestBindings extends Bindings {
   @override
   void dependencies() {
     Get.put<ISessionService>(const FakeSessionService(), permanent: true);
+    Get.put(
+      ThemeController(MemoryPreferences(), initialMode: ThemeMode.system),
+      permanent: true,
+    );
     Get.put<IListingSource>(source, permanent: true);
     Get.put<IListingRepository>(
       ListingRepository(Get.find<IListingSource>()),

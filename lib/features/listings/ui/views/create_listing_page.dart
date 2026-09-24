@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../../core/category_style.dart';
 import '../../../../routes/app_routes.dart';
 import '../../domain/models/listing_category.dart';
 import '../viewmodels/create_listing_view_model.dart';
@@ -161,10 +162,10 @@ class _CreateListingPageState extends State<CreateListingPage> {
                 runSpacing: 8,
                 children: [
                   for (final category in listingCategories)
-                    ChoiceChip(
-                      label: Text(category),
+                    _CategoryChip(
+                      category: category,
                       selected: _viewModel.category.value == category,
-                      onSelected: (_) => _viewModel.selectCategory(category),
+                      onSelected: () => _viewModel.selectCategory(category),
                     ),
                 ],
               ),
@@ -310,6 +311,43 @@ class _Label extends StatelessWidget {
       style: Theme.of(context).textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.bold,
           ),
+    );
+  }
+}
+
+/// A category choice colored like the chip the finished card will show, so
+/// picking one here already previews how the project will look once
+/// published.
+class _CategoryChip extends StatelessWidget {
+  final String category;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  const _CategoryChip({
+    required this.category,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final style = CategoryStyle.of(context, category);
+
+    return ChoiceChip(
+      avatar: Icon(
+        style.icon,
+        size: 16,
+        color: selected ? Colors.white : style.color,
+      ),
+      label: Text(category),
+      selected: selected,
+      onSelected: (_) => onSelected(),
+      selectedColor: style.color,
+      labelStyle: TextStyle(
+        color: selected ? Colors.white : null,
+        fontWeight: selected ? FontWeight.w700 : null,
+      ),
+      side: BorderSide(color: style.color.withValues(alpha: selected ? 0 : 0.4)),
     );
   }
 }

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../../core/widgets/name_avatar.dart';
 import '../../../../routes/app_routes.dart';
+import '../../../shell/ui/widgets/empty_state.dart';
+import '../../../shell/ui/widgets/info_banner.dart';
 import '../../domain/models/join_request.dart';
 import '../../domain/models/join_request_status.dart';
 import '../../domain/models/listing.dart';
@@ -199,17 +202,7 @@ class _Header extends StatelessWidget {
         const SizedBox(height: 10),
         Row(
           children: [
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: colors.secondaryContainer,
-              child: Text(
-                listing.creatorName.characters.first,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: colors.onSecondaryContainer,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
+            NameAvatar(name: listing.creatorName, radius: 16),
             const SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -288,14 +281,14 @@ class _JoinAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (controller.isCreator) {
-      return const _Notice(
+      return const InfoBanner(
         icon: Icons.verified_outlined,
         text: 'Este es tu proyecto.',
       );
     }
 
     if (controller.isMember) {
-      return const _Notice(
+      return const InfoBanner(
         icon: Icons.check_circle_outline,
         text: 'Ya formas parte de este equipo.',
       );
@@ -304,14 +297,14 @@ class _JoinAction extends StatelessWidget {
     final request = controller.myRequest.value;
 
     if (request != null) {
-      return _Notice(
+      return InfoBanner(
         icon: Icons.schedule,
         text: 'Solicitud enviada — estado: ${request.status.label}.',
       );
     }
 
     if (listing.isFull) {
-      return const _Notice(
+      return const InfoBanner(
         icon: Icons.group_off_outlined,
         text: 'El equipo ya está completo.',
       );
@@ -329,33 +322,6 @@ class _JoinAction extends StatelessWidget {
   }
 }
 
-class _Notice extends StatelessWidget {
-  final IconData icon;
-  final String text;
-
-  const _Notice({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colors.outlineVariant),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: colors.primary),
-          const SizedBox(width: 12),
-          Expanded(child: Text(text)),
-        ],
-      ),
-    );
-  }
-}
 
 /// The creator's inbox for this project.
 ///
@@ -423,9 +389,10 @@ class _RequestsInboxState extends State<_RequestsInbox> {
       }
 
       if (_requests.error.value != null) {
-        return _Notice(
+        return InfoBanner(
           icon: Icons.error_outline,
           text: _requests.error.value!,
+          tint: Theme.of(context).colorScheme.error,
         );
       }
 
@@ -434,9 +401,9 @@ class _RequestsInboxState extends State<_RequestsInbox> {
           .toList();
 
       if (pending.isEmpty) {
-        return const _Notice(
+        return const EmptyState.inline(
           icon: Icons.inbox_outlined,
-          text: 'No hay solicitudes pendientes.',
+          title: 'No hay solicitudes pendientes',
         );
       }
 
@@ -619,9 +586,10 @@ class _CommentsState extends State<_Comments> {
         ),
         const SizedBox(height: 16),
         if (widget.comments.isEmpty)
-          const _Notice(
+          const EmptyState.inline(
             icon: Icons.mode_comment_outlined,
-            text: 'Todavía no hay comentarios. Sé la primera persona.',
+            title: 'Todavía no hay comentarios',
+            message: 'Sé la primera persona en escribir algo.',
           )
         else
           for (final comment in widget.comments)
@@ -630,17 +598,7 @@ class _CommentsState extends State<_Comments> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CircleAvatar(
-                    radius: 15,
-                    backgroundColor: theme.colorScheme.secondaryContainer,
-                    child: Text(
-                      comment.authorName.characters.first,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSecondaryContainer,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+                  NameAvatar(name: comment.authorName, radius: 15),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(

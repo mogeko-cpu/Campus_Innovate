@@ -4,6 +4,9 @@ import 'package:get/get.dart';
 import '../../../../core/app_theme.dart';
 import '../../../../routes/app_routes.dart';
 import '../../../shell/ui/widgets/app_bottom_nav.dart';
+import '../../../shell/ui/widgets/empty_state.dart';
+import '../../../shell/ui/widgets/gradient_header.dart';
+import '../../domain/models/ranked_listing.dart';
 import '../viewmodels/ranking_view_model.dart';
 import '../widgets/listing_card.dart';
 
@@ -31,16 +34,19 @@ class RankingPage extends GetView<RankingViewModel> {
           }
 
           if (controller.error.value != null) {
-            return _Empty(
+            return EmptyState.screen(
               icon: Icons.error_outline,
-              text: controller.error.value!,
+              title: 'No se pudo cargar el ranking',
+              message: controller.error.value!,
             );
           }
 
           if (controller.ranking.isEmpty) {
-            return const _Empty(
+            return const EmptyState.screen(
               icon: Icons.leaderboard_outlined,
-              text: 'Todavía no hay proyectos publicados.',
+              title: 'Todavía no hay proyectos publicados',
+              message: 'Cuando se publiquen, aparecerán aquí ordenados por '
+                  'valoración.',
             );
           }
 
@@ -51,7 +57,9 @@ class RankingPage extends GetView<RankingViewModel> {
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
               itemCount: controller.ranking.length + 1,
               itemBuilder: (context, index) {
-                if (index == 0) return const _Intro();
+                if (index == 0) {
+                  return _RankingHeader(ranking: controller.ranking);
+                }
 
                 final entry = controller.ranking[index - 1];
 
@@ -73,21 +81,29 @@ class RankingPage extends GetView<RankingViewModel> {
   }
 }
 
-class _Intro extends StatelessWidget {
-  const _Intro();
+class _RankingHeader extends StatelessWidget {
+  final List<RankedListing> ranking;
+
+  const _RankingHeader({required this.ranking});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final totalLikes = ranking.fold<int>(
+      0,
+      (sum, entry) => sum + entry.stats.likes,
+    );
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Text(
-        'Los proyectos mejor valorados del campus. El puntaje son los me gusta '
-        'menos los no me gusta; los comentarios y las vistas desempatan.',
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
+      padding: const EdgeInsets.only(bottom: 20),
+      child: GradientHeader(
+        icon: Icons.leaderboard_outlined,
+        title: 'Ranking del campus',
+        subtitle: 'El puntaje son los me gusta menos los no me gusta; los '
+            'comentarios y las vistas desempatan.',
+        stats: [
+          ('${ranking.length}', ranking.length == 1 ? 'proyecto' : 'proyectos'),
+          ('$totalLikes', 'me gusta en total'),
+        ],
       ),
     );
   }
@@ -125,32 +141,3 @@ class _PositionBadge extends StatelessWidget {
   }
 }
 
-class _Empty extends StatelessWidget {
-  final IconData icon;
-  final String text;
-
-  const _Empty({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(40),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 44, color: colors.outline),
-            const SizedBox(height: 14),
-            Text(
-              text,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: colors.onSurfaceVariant),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

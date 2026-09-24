@@ -29,9 +29,13 @@ the repository and `ISessionService` through constructor injection.
 - [`lib/di/app_bindings.dart`](lib/di/app_bindings.dart) — Composition root. `boot()` builds preferences → session → client → auth source and restores the stored session, which decides `initialRoute`: home with a session, login without. `dependencies()` registers everything as permanent singletons.
 - [`lib/routes/app_routes.dart`](lib/routes/app_routes.dart) — Route name constants plus `detailOf(id)` / `joinOf(id)` builders for parameterized routes.
 - [`lib/routes/app_pages.dart`](lib/routes/app_pages.dart) — Maps each route to its page and per-route binding.
-- [`lib/core/app_theme.dart`](lib/core/app_theme.dart) — Campus Innovate palette: academic crimson primary, navy secondary, muted gold tertiary, built with FlexColorScheme.
+- [`lib/core/app_theme.dart`](lib/core/app_theme.dart) — Campus Innovate palette: academic crimson primary, navy secondary, muted gold tertiary, built with FlexColorScheme. Sora is layered onto the display/headline/title styles and Inter onto the rest, after FlexColorScheme builds the base theme, since its own `fontFamily` only takes one family for everything.
+- [`lib/core/category_style.dart`](lib/core/category_style.dart) — `CategoryStyle`: the color and icon a project category is drawn with, one entry per `listingCategories`, with a fallback for a category this map does not know yet.
+- [`lib/core/avatar_color.dart`](lib/core/avatar_color.dart) — `AvatarColor`: a color and two-letter initials derived from a name, deterministic so the same person is always the same color everywhere they appear.
+- [`lib/core/widgets/name_avatar.dart`](lib/core/widgets/name_avatar.dart) — `NameAvatar`, the one circle-with-initials widget every screen uses instead of building its own.
+- [`lib/core/theme_controller.dart`](lib/core/theme_controller.dart) — `ThemeController`: light/dark/system, persisted through `ILocalPreferences` and read before `runApp` so the first frame opens in the right theme.
 - [`lib/core/i_session_service.dart`](lib/core/i_session_service.dart) — Identity of the current user, implemented by [`RobleSessionService`](lib/core/roble/roble_session_service.dart) over the signed-in ROBLE account.
-- [`lib/core/i_local_preferences.dart`](lib/core/i_local_preferences.dart) — Storage contract with shared and encrypted adapters. The session uses the encrypted one.
+- [`lib/core/i_local_preferences.dart`](lib/core/i_local_preferences.dart) — Storage contract with shared and encrypted adapters. The session uses the encrypted one; the theme choice uses it too, since it is not sensitive.
 - [`lib/core/user_facing_exception.dart`](lib/core/user_facing_exception.dart) — Marks an exception whose `message` may be shown as is. [`error_message.dart`](lib/core/error_message.dart) passes those through and gives everything else a fallback.
 
 ## ROBLE
@@ -87,7 +91,7 @@ The core feature: publish a project, browse open projects, request to join one.
 - [`ui/views/`](lib/features/listings/ui/views) — `listings_page`, `create_listing_page`, `listing_detail_page`, `join_request_page`, `ranking_page`.
 - [`ui/widgets/listing_card.dart`](lib/features/listings/ui/widgets/listing_card.dart) — Shared project card, also used by home, the ranking and the groups screen. Counters and the position badge are optional.
 - [`ui/widgets/listing_stats_row.dart`](lib/features/listings/ui/widgets/listing_stats_row.dart) — The read-only counters under a card.
-- [`ui/widgets/reaction_bar.dart`](lib/features/listings/ui/widgets/reaction_bar.dart) — Like and dislike with their counts, plus views and comments.
+- [`ui/widgets/reaction_bar.dart`](lib/features/listings/ui/widgets/reaction_bar.dart) — Like and dislike with their counts, plus views and comments. The button that becomes selected plays a short scale bounce, and its counter slides the new value in instead of snapping to it.
 - [`listings_dependencies.dart`](lib/features/listings/listings_dependencies.dart) — One binding per listings route, ranking included.
 
 The detail screen is where a project is lived in: it counts the visit, carries the
@@ -138,6 +142,9 @@ applied to those and may be on their teams.
 ## Shell
 
 - [`lib/features/shell/ui/widgets/app_bottom_nav.dart`](lib/features/shell/ui/widgets/app_bottom_nav.dart) — `AppTab` and the navigation bar the five root screens share: Inicio, Explorar, Ranking, Grupos, Perfil. Switching tabs uses `offAllNamed`, since a tab is a root and not a step in a journey.
+- [`lib/features/shell/ui/widgets/empty_state.dart`](lib/features/shell/ui/widgets/empty_state.dart) — `EmptyState.screen` / `EmptyState.inline`: an icon in a soft tinted circle plus an optional action, replacing the `_Empty`/`_Message` classes that used to be duplicated in every screen.
+- [`lib/features/shell/ui/widgets/info_banner.dart`](lib/features/shell/ui/widgets/info_banner.dart) — `InfoBanner`: a left-aligned icon-and-text row for status messages ("this is your project", an inline error) that are not about an empty collection, so they keep their own shape instead of the centered `EmptyState` treatment.
+- [`lib/features/shell/ui/widgets/gradient_header.dart`](lib/features/shell/ui/widgets/gradient_header.dart) — `GradientHeader`: the crimson-to-navy banner used at the top of Ranking and Grupos, with small stat chips. Profile's own header uses the same gradient directly, since it also needs an avatar.
 
 ## Home feature
 

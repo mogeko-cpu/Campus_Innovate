@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../../core/category_style.dart';
 import '../../../../routes/app_routes.dart';
 import '../../../shell/ui/widgets/app_bottom_nav.dart';
+import '../../../shell/ui/widgets/empty_state.dart';
 import '../../domain/models/listing_category.dart';
 import '../viewmodels/listings_view_model.dart';
 import '../widgets/listing_card.dart';
@@ -68,18 +70,21 @@ class ListingsPage extends GetView<ListingsViewModel> {
               }
 
               if (controller.error.value != null) {
-                return _Empty(
+                return EmptyState.screen(
                   icon: Icons.error_outline,
-                  text: controller.error.value!,
+                  title: 'No se pudieron cargar los proyectos',
+                  message: controller.error.value!,
                 );
               }
 
               final listings = controller.listings;
 
               if (listings.isEmpty) {
-                return const _Empty(
+                return const EmptyState.screen(
                   icon: Icons.search_off,
-                  text: 'Ningún proyecto coincide con tu búsqueda.',
+                  title: 'Ningún proyecto coincide',
+                  message: 'Prueba con otra categoría o con otro término de '
+                      'búsqueda.',
                 );
               }
 
@@ -110,6 +115,8 @@ class ListingsPage extends GetView<ListingsViewModel> {
   }
 }
 
+/// A category filter, colored like the chip a matching card would show —
+/// "Todas" stays neutral since it does not stand for one category.
 class _CategoryChip extends StatelessWidget {
   final String label;
   final bool selected;
@@ -123,42 +130,29 @@ class _CategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isAll = label == 'Todas';
+    final style = isAll ? null : CategoryStyle.of(context, label);
+
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: ChoiceChip(
+        avatar: style == null
+            ? null
+            : Icon(
+                style.icon,
+                size: 16,
+                color: selected ? Colors.white : style.color,
+              ),
         label: Text(label),
         selected: selected,
         onSelected: (_) => onSelected(),
-      ),
-    );
-  }
-}
-
-class _Empty extends StatelessWidget {
-  final IconData icon;
-  final String text;
-
-  const _Empty({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(40),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 44, color: colors.outline),
-            const SizedBox(height: 14),
-            Text(
-              text,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: colors.onSurfaceVariant),
-            ),
-          ],
-        ),
+        selectedColor: style?.color,
+        labelStyle: style == null || !selected
+            ? null
+            : const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        side: style == null
+            ? null
+            : BorderSide(color: style.color.withValues(alpha: selected ? 0 : 0.4)),
       ),
     );
   }

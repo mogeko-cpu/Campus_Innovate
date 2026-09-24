@@ -5,6 +5,7 @@ import '../../../../routes/app_routes.dart';
 import '../../../auth/ui/viewmodels/authentication_controller.dart';
 import '../../../listings/ui/widgets/listing_card.dart';
 import '../../../shell/ui/widgets/app_bottom_nav.dart';
+import '../../../shell/ui/widgets/empty_state.dart';
 import '../viewmodels/home_view_model.dart';
 import '../widgets/action_card.dart';
 
@@ -85,10 +86,16 @@ class HomePage extends GetView<HomeViewModel> {
                     child: Center(child: CircularProgressIndicator()),
                   )
                 else if (controller.error.value != null)
-                  _Message(text: controller.error.value!)
+                  EmptyState.inline(
+                    icon: Icons.error_outline,
+                    title: 'No se pudieron cargar las ideas',
+                    message: controller.error.value!,
+                    tint: Theme.of(context).colorScheme.error,
+                  )
                 else if (controller.featuredListings.isEmpty)
-                  const _Message(
-                    text: 'Todavía no hay ideas con cupos disponibles.',
+                  const EmptyState.inline(
+                    icon: Icons.lightbulb_outline,
+                    title: 'Todavía no hay ideas con cupos disponibles',
                   )
                 else
                   for (final listing in controller.featuredListings)
@@ -103,8 +110,10 @@ class HomePage extends GetView<HomeViewModel> {
                 const _SectionHeader(title: 'Mis proyectos'),
                 const SizedBox(height: 14),
                 if (controller.myListings.isEmpty)
-                  const _Message(
-                    text: 'Aún no participas en ningún proyecto.',
+                  const EmptyState.inline(
+                    icon: Icons.handshake_outlined,
+                    title: 'Aún no participas en ningún proyecto',
+                    message: 'Explora las ideas destacadas o publica la tuya.',
                   )
                 else
                   for (final listing in controller.myListings)
@@ -211,30 +220,3 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _Message extends StatelessWidget {
-  final String text;
-
-  const _Message({required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-      ),
-    );
-  }
-}

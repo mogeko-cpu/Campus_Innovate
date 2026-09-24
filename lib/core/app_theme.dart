@@ -1,5 +1,6 @@
 import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// Campus Innovate visual identity: academic crimson as the primary voice,
 /// navy for structure, and a muted gold accent for highlights.
@@ -50,23 +51,60 @@ abstract final class AppTheme {
     navigationRailUseIndicator: true,
   );
 
-  static ThemeData light = FlexThemeData.light(
-    colors: _lightColors,
-    surfaceMode: FlexSurfaceMode.levelSurfacesLowScaffold,
-    blendLevel: 2,
-    appBarStyle: FlexAppBarStyle.primary,
-    appBarElevation: 0,
-    subThemesData: _subThemes,
-    visualDensity: FlexColorScheme.comfortablePlatformDensity,
+  static ThemeData light = _withTypography(
+    FlexThemeData.light(
+      colors: _lightColors,
+      surfaceMode: FlexSurfaceMode.levelSurfacesLowScaffold,
+      blendLevel: 2,
+      appBarStyle: FlexAppBarStyle.primary,
+      appBarElevation: 0,
+      subThemesData: _subThemes,
+      visualDensity: FlexColorScheme.comfortablePlatformDensity,
+    ),
   );
 
-  static ThemeData dark = FlexThemeData.dark(
-    colors: _darkColors,
-    surfaceMode: FlexSurfaceMode.levelSurfacesLowScaffold,
-    blendLevel: 8,
-    appBarStyle: FlexAppBarStyle.background,
-    appBarElevation: 0,
-    subThemesData: _subThemes,
-    visualDensity: FlexColorScheme.comfortablePlatformDensity,
+  static ThemeData dark = _withTypography(
+    FlexThemeData.dark(
+      colors: _darkColors,
+      surfaceMode: FlexSurfaceMode.levelSurfacesLowScaffold,
+      blendLevel: 8,
+      appBarStyle: FlexAppBarStyle.background,
+      appBarElevation: 0,
+      subThemesData: _subThemes,
+      visualDensity: FlexColorScheme.comfortablePlatformDensity,
+    ),
   );
+
+  /// Layers two Google Fonts onto FlexColorScheme's generated type scale:
+  /// Sora for anything that reads as a heading, Inter for everything a person
+  /// actually sits down and reads. FlexColorScheme's own `fontFamily` only
+  /// takes one family for the whole theme, so the split happens here, after
+  /// the base theme is built, by overriding just the display/headline/title
+  /// styles and leaving body/label on the Inter baseline.
+  static ThemeData _withTypography(ThemeData base) {
+    final bodyTextTheme = GoogleFonts.interTextTheme(base.textTheme);
+    final displayTextTheme = GoogleFonts.soraTextTheme(base.textTheme);
+
+    final textTheme = bodyTextTheme.copyWith(
+      displayLarge: displayTextTheme.displayLarge,
+      displayMedium: displayTextTheme.displayMedium,
+      displaySmall: displayTextTheme.displaySmall,
+      headlineLarge: displayTextTheme.headlineLarge,
+      headlineMedium: displayTextTheme.headlineMedium,
+      headlineSmall: displayTextTheme.headlineSmall,
+      titleLarge: displayTextTheme.titleLarge,
+      titleMedium: displayTextTheme.titleMedium,
+    );
+
+    return base.copyWith(
+      textTheme: textTheme,
+      primaryTextTheme: GoogleFonts.interTextTheme(base.primaryTextTheme),
+      appBarTheme: base.appBarTheme.copyWith(
+        titleTextStyle: displayTextTheme.titleLarge?.copyWith(
+          color: base.appBarTheme.foregroundColor,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
 }

@@ -1,9 +1,11 @@
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../core/error_message.dart';
 import '../core/i_local_preferences.dart';
 import '../core/i_session_service.dart';
 import '../core/local_preferences_secured.dart';
+import '../core/theme_controller.dart';
 import '../core/roble/roble_client.dart';
 import '../core/roble/roble_session.dart';
 import '../core/roble/roble_session_service.dart';
@@ -39,6 +41,7 @@ class AppBindings extends Bindings {
     required this.authenticationSource,
     required this.initialRoute,
     required this.socialError,
+    required this.themeMode,
   });
 
   /// Wires everything up and works out where the app should open.
@@ -52,6 +55,10 @@ class AppBindings extends Bindings {
     final session = RobleSession(preferences);
     final client = RobleClient(session: session);
     final authenticationSource = RobleAuthenticationSource(client, session);
+
+    // Read alongside the session, before the first frame, so the app never
+    // opens light and then jumps to dark a moment later.
+    final themeMode = await ThemeController.readInitial(preferences);
 
     var hasSession = false;
     try {
@@ -86,6 +93,7 @@ class AppBindings extends Bindings {
       authenticationSource: authenticationSource,
       initialRoute: hasSession ? AppRoutes.home : AppRoutes.login,
       socialError: socialError,
+      themeMode: themeMode,
     );
   }
 
@@ -101,11 +109,19 @@ class AppBindings extends Bindings {
   /// when this launch was not a return at all.
   final String socialError;
 
+  /// The theme the person last chose, read before the first frame so
+  /// `GetMaterialApp` opens in it directly.
+  final ThemeMode themeMode;
+
   @override
   void dependencies() {
     Get.put<ILocalPreferences>(preferences, permanent: true);
     Get.put<RobleSession>(session, permanent: true);
     Get.put<RobleClient>(client, permanent: true);
+    Get.put(
+      ThemeController(preferences, initialMode: themeMode),
+      permanent: true,
+    );
 
     // Everything below is permanent: one HTTP client and one session for the
     // whole run, so navigating does not rebuild the graph or re-read the token.

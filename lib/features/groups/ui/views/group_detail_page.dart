@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../../core/widgets/name_avatar.dart';
 import '../../../../routes/app_routes.dart';
+import '../../../shell/ui/widgets/empty_state.dart';
+import '../../../shell/ui/widgets/info_banner.dart';
 import '../../domain/models/group.dart';
 import '../../domain/models/group_member.dart';
 import '../../domain/models/group_request.dart';
@@ -163,9 +166,10 @@ class GroupDetailPage extends GetView<GroupDetailViewModel> {
               _Header(group: group),
               if (controller.error.value != null) ...[
                 const SizedBox(height: 16),
-                _Notice(
+                InfoBanner(
                   icon: Icons.error_outline,
                   text: controller.error.value!,
+                  tint: Theme.of(context).colorScheme.error,
                 ),
               ],
               const SizedBox(height: 24),
@@ -210,9 +214,9 @@ class GroupDetailPage extends GetView<GroupDetailViewModel> {
                 ),
                 const SizedBox(height: 10),
                 if (controller.pendingRequests.isEmpty)
-                  const _Notice(
+                  const EmptyState.inline(
                     icon: Icons.inbox_outlined,
-                    text: 'No hay solicitudes pendientes.',
+                    title: 'No hay solicitudes pendientes',
                   )
                 else
                   for (final request in controller.pendingRequests)
@@ -248,9 +252,9 @@ class GroupDetailPage extends GetView<GroupDetailViewModel> {
               ),
               const SizedBox(height: 10),
               if (controller.projects.isEmpty)
-                const _Notice(
+                const EmptyState.inline(
                   icon: Icons.work_outline,
-                  text: 'Este grupo todavía no ha publicado proyectos.',
+                  title: 'Este grupo todavía no ha publicado proyectos',
                 )
               else
                 for (final listing in controller.projects)
@@ -353,7 +357,7 @@ class _JoinAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isOwner) {
-      return const _Notice(
+      return const InfoBanner(
         icon: Icons.verified_outlined,
         text: 'Este grupo es tuyo. Acepta o rechaza las solicitudes abajo.',
       );
@@ -369,7 +373,7 @@ class _JoinAction extends StatelessWidget {
     }
 
     if (myRequest != null) {
-      return _Notice(
+      return InfoBanner(
         icon: Icons.schedule,
         text: 'Solicitud enviada — estado: ${myRequest!.status.label}.',
       );
@@ -399,23 +403,11 @@ class _MemberTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       clipBehavior: Clip.antiAlias,
       child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: colors.secondaryContainer,
-          child: Text(
-            member.userName.characters.first,
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: colors.onSecondaryContainer,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
+        leading: NameAvatar(name: member.userName, radius: 18),
         title: Text(member.userName),
         subtitle: Text(isOwner ? 'Creador' : 'Integrante'),
         trailing: canRemove
@@ -522,30 +514,3 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-class _Notice extends StatelessWidget {
-  final IconData icon;
-  final String text;
-
-  const _Notice({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colors.outlineVariant),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: colors.primary),
-          const SizedBox(width: 12),
-          Expanded(child: Text(text)),
-        ],
-      ),
-    );
-  }
-}

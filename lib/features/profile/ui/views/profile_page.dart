@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../../core/theme_controller.dart';
 import '../../../../routes/app_routes.dart';
 import '../../../auth/ui/viewmodels/authentication_controller.dart';
 import '../../../shell/ui/widgets/app_bottom_nav.dart';
+import '../../../shell/ui/widgets/empty_state.dart';
 import '../viewmodels/profile_view_model.dart';
 
 /// Who you are in Campus Innovate: your account, your numbers, your groups,
@@ -82,7 +84,12 @@ class ProfilePage extends GetView<ProfileViewModel> {
                 ),
                 if (controller.error.value != null) ...[
                   const SizedBox(height: 16),
-                  _Message(text: controller.error.value!),
+                  EmptyState.inline(
+                    icon: Icons.error_outline,
+                    title: 'No se pudo cargar todo',
+                    message: controller.error.value!,
+                    tint: Theme.of(context).colorScheme.error,
+                  ),
                 ],
                 const SizedBox(height: 22),
                 _Numbers(
@@ -93,10 +100,19 @@ class ProfilePage extends GetView<ProfileViewModel> {
                   views: controller.viewsReceived.value,
                 ),
                 const SizedBox(height: 28),
+                const _SectionTitle(title: 'Apariencia'),
+                const SizedBox(height: 10),
+                const _AppearanceSelector(),
+                const SizedBox(height: 28),
                 const _SectionTitle(title: 'Mis grupos'),
                 const SizedBox(height: 10),
                 if (controller.myGroups.isEmpty)
-                  const _Message(text: 'Todavía no haces parte de un grupo.')
+                  EmptyState.inline(
+                    icon: Icons.groups_outlined,
+                    title: 'Todavía no haces parte de un grupo',
+                    actionLabel: 'Ver grupos',
+                    onAction: () => _openAndRefresh(AppRoutes.groups),
+                  )
                 else
                   for (final group in controller.myGroups)
                     _Tile(
@@ -113,7 +129,10 @@ class ProfilePage extends GetView<ProfileViewModel> {
                 const _SectionTitle(title: 'Proyectos que publiqué'),
                 const SizedBox(height: 10),
                 if (controller.myListings.isEmpty)
-                  const _Message(text: 'Aún no has publicado proyectos.')
+                  const EmptyState.inline(
+                    icon: Icons.lightbulb_outline,
+                    title: 'Aún no has publicado proyectos',
+                  )
                 else
                   for (final listing in controller.myListings)
                     _Tile(
@@ -130,9 +149,9 @@ class ProfilePage extends GetView<ProfileViewModel> {
                 const _SectionTitle(title: 'Proyectos en los que participo'),
                 const SizedBox(height: 10),
                 if (controller.participations.isEmpty)
-                  const _Message(
-                    text: 'Todavía no te has unido a un proyecto de otra '
-                        'persona.',
+                  const EmptyState.inline(
+                    icon: Icons.handshake_outlined,
+                    title: 'Todavía no te unes a proyectos de otras personas',
                   )
                 else
                   for (final listing in controller.participations)
@@ -148,7 +167,10 @@ class ProfilePage extends GetView<ProfileViewModel> {
                 const _SectionTitle(title: 'Mis solicitudes'),
                 const SizedBox(height: 10),
                 if (controller.myRequests.isEmpty)
-                  const _Message(text: 'No has enviado solicitudes.')
+                  const EmptyState.inline(
+                    icon: Icons.send_outlined,
+                    title: 'No has enviado solicitudes',
+                  )
                 else
                   for (final request in controller.myRequests)
                     _Tile(
@@ -361,29 +383,38 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-class _Message extends StatelessWidget {
-  final String text;
 
-  const _Message({required this.text});
+/// Light, dark or follow-system, reflected everywhere the moment it changes —
+/// [ThemeController.setMode] calls `Get.changeThemeMode`, so this segmented
+/// control is the only place that needs to know the setting exists.
+class _AppearanceSelector extends StatelessWidget {
+  const _AppearanceSelector();
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final controller = Get.find<ThemeController>();
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 18),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
+    return Obx(
+      () => SegmentedButton<ThemeMode>(
+        segments: const [
+          ButtonSegment(
+            value: ThemeMode.light,
+            icon: Icon(Icons.light_mode_outlined),
+            label: Text('Claro'),
+          ),
+          ButtonSegment(
+            value: ThemeMode.dark,
+            icon: Icon(Icons.dark_mode_outlined),
+            label: Text('Oscuro'),
+          ),
+          ButtonSegment(
+            value: ThemeMode.system,
+            icon: Icon(Icons.brightness_auto_outlined),
+            label: Text('Sistema'),
+          ),
+        ],
+        selected: {controller.themeMode.value},
+        onSelectionChanged: (selection) => controller.setMode(selection.first),
       ),
     );
   }

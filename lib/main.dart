@@ -21,6 +21,7 @@ Future<void> main() async {
     CampusInnovateApp(
       initialBinding: bindings,
       initialRoute: bindings.initialRoute,
+      initialThemeMode: bindings.themeMode,
     ),
   );
 }
@@ -34,10 +35,16 @@ class CampusInnovateApp extends StatelessWidget {
     super.key,
     this.initialBinding,
     this.initialRoute = AppRoutes.home,
+    this.initialThemeMode = ThemeMode.system,
   });
 
   final Bindings? initialBinding;
   final String initialRoute;
+
+  /// The theme the person chose last time, read before the first frame. Tests
+  /// that build this widget directly, without going through [AppBindings.boot],
+  /// get the ordinary default of following the system.
+  final ThemeMode initialThemeMode;
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +56,7 @@ class CampusInnovateApp extends StatelessWidget {
       getPages: AppPages.pages,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.light,
+      themeMode: initialThemeMode,
     );
   }
 }

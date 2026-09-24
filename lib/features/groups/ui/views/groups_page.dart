@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 
 import '../../../../routes/app_routes.dart';
 import '../../../shell/ui/widgets/app_bottom_nav.dart';
+import '../../../shell/ui/widgets/empty_state.dart';
+import '../../../shell/ui/widgets/gradient_header.dart';
 import '../../domain/models/group.dart';
 import '../viewmodels/groups_view_model.dart';
 import '../widgets/group_card.dart';
@@ -37,9 +39,10 @@ class GroupsPage extends GetView<GroupsViewModel> {
           }
 
           if (controller.error.value != null) {
-            return _Empty(
+            return EmptyState.screen(
               icon: Icons.error_outline,
-              text: controller.error.value!,
+              title: 'No se pudieron cargar los grupos',
+              message: controller.error.value!,
             );
           }
 
@@ -49,12 +52,26 @@ class GroupsPage extends GetView<GroupsViewModel> {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
               children: [
+                GradientHeader(
+                  icon: Icons.groups_outlined,
+                  title: 'Grupos',
+                  subtitle: 'Publica proyectos a nombre de un equipo y '
+                      'gestiona quién entra.',
+                  stats: [
+                    ('${controller.myGroups.length}', 'tuyos'),
+                    ('${controller.otherGroups.length}', 'en el campus'),
+                  ],
+                ),
+                const SizedBox(height: 24),
                 const _SectionHeader(title: 'Mis grupos'),
                 const SizedBox(height: 12),
                 if (controller.myGroups.isEmpty)
-                  const _Message(
-                    text: 'Todavía no haces parte de ningún grupo. Crea uno '
-                        'para publicar proyectos a su nombre.',
+                  EmptyState.inline(
+                    icon: Icons.groups_outlined,
+                    title: 'Todavía no tienes grupos',
+                    message: 'Crea uno para publicar proyectos a su nombre.',
+                    actionLabel: 'Crear grupo',
+                    onAction: () => _openAndRefresh(AppRoutes.createGroup),
                   )
                 else
                   for (final group in controller.myGroups)
@@ -70,7 +87,10 @@ class GroupsPage extends GetView<GroupsViewModel> {
                 const _SectionHeader(title: 'Otros grupos del campus'),
                 const SizedBox(height: 12),
                 if (controller.otherGroups.isEmpty)
-                  const _Message(text: 'No hay otros grupos por ahora.')
+                  const EmptyState.inline(
+                    icon: Icons.public_off_outlined,
+                    title: 'No hay otros grupos por ahora',
+                  )
                 else
                   for (final group in controller.otherGroups)
                     GroupCard(
@@ -112,60 +132,3 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _Message extends StatelessWidget {
-  final String text;
-
-  const _Message({required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-      ),
-    );
-  }
-}
-
-class _Empty extends StatelessWidget {
-  final IconData icon;
-  final String text;
-
-  const _Empty({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(40),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 44, color: colors.outline),
-            const SizedBox(height: 14),
-            Text(
-              text,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: colors.onSurfaceVariant),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

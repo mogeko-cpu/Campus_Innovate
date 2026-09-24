@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/category_style.dart';
+import '../../../../core/widgets/name_avatar.dart';
 import '../../domain/models/listing.dart';
 import '../../domain/models/listing_stats.dart';
 import 'listing_stats_row.dart';
@@ -27,6 +29,7 @@ class ListingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final category = CategoryStyle.of(context, listing.category);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 14),
@@ -50,15 +53,22 @@ class ListingCard extends StatelessWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: colors.primaryContainer,
+                      color: category.color.withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Text(
-                      listing.category,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: colors.onPrimaryContainer,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(category.icon, size: 13, color: category.color),
+                        const SizedBox(width: 5),
+                        Text(
+                          listing.category,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: category.color,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const Spacer(),
@@ -128,17 +138,7 @@ class ListingCard extends StatelessWidget {
               const SizedBox(height: 14),
               Row(
                 children: [
-                  CircleAvatar(
-                    radius: 13,
-                    backgroundColor: colors.secondaryContainer,
-                    child: Text(
-                      listing.creatorName.characters.first,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: colors.onSecondaryContainer,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+                  NameAvatar(name: listing.creatorName, radius: 13),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(

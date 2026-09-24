@@ -36,14 +36,14 @@ class ReactionBar extends StatelessWidget {
         _ReactionButton(
           icon: Icons.thumb_up_outlined,
           selectedIcon: Icons.thumb_up,
-          label: '${stats.likes}',
+          count: stats.likes,
           selected: stats.myReaction == ReactionType.like,
           onPressed: isBusy ? null : () => onReact(ReactionType.like),
         ),
         _ReactionButton(
           icon: Icons.thumb_down_outlined,
           selectedIcon: Icons.thumb_down,
-          label: '${stats.dislikes}',
+          count: stats.dislikes,
           selected: stats.myReaction == ReactionType.dislike,
           onPressed: isBusy ? null : () => onReact(ReactionType.dislike),
         ),
@@ -64,38 +64,103 @@ class ReactionBar extends StatelessWidget {
   }
 }
 
-class _ReactionButton extends StatelessWidget {
+/// A vote button that bounces when it becomes the selected one.
+///
+/// The bounce plays on the transition into `selected`, never on the transition
+/// out of it or on an unrelated rebuild: pressing "like" should feel like it
+/// landed, but the button quietly turning back to outline when you undo it, or
+/// redrawing after a reload, should not replay the same flourish.
+class _ReactionButton extends StatefulWidget {
   final IconData icon;
   final IconData selectedIcon;
-  final String label;
+  final int count;
   final bool selected;
   final VoidCallback? onPressed;
 
   const _ReactionButton({
     required this.icon,
     required this.selectedIcon,
-    required this.label,
+    required this.count,
     required this.selected,
     required this.onPressed,
   });
 
   @override
+  State<_ReactionButton> createState() => _ReactionButtonState();
+}
+
+class _ReactionButtonState extends State<_ReactionButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+  );
+
+  late final Animation<double> _scale = TweenSequence<double>([
+    TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.18), weight: 45),
+    TweenSequenceItem(tween: Tween(begin: 1.18, end: 1.0), weight: 55),
+  ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+
+  @override
+  void didUpdateWidget(_ReactionButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (widget.selected && !oldWidget.selected) {
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
 
-    if (selected) {
-      return FilledButton.tonalIcon(
-        onPressed: onPressed,
-        icon: Icon(selectedIcon, size: 18),
-        label: Text(label),
-      );
-    }
+    final button = widget.selected
+        ? FilledButton.tonalIcon(
+            onPressed: widget.onPressed,
+            icon: Icon(widget.selectedIcon, size: 18),
+            label: _AnimatedCount(count: widget.count),
+          )
+        : OutlinedButton.icon(
+            onPressed: widget.onPressed,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: colors.onSurfaceVariant,
+            ),
+            icon: Icon(widget.icon, size: 18),
+            label: _AnimatedCount(count: widget.count),
+          );
 
-    return OutlinedButton.icon(
-      onPressed: onPressed,
-      style: OutlinedButton.styleFrom(foregroundColor: colors.onSurfaceVariant),
-      icon: Icon(icon, size: 18),
-      label: Text(label),
+    return ScaleTransition(scale: _scale, child: button);
+  }
+}
+
+/// A counter that slides the new value in and the old one out, instead of
+/// snapping straight to the new number.
+class _AnimatedCount extends StatelessWidget {
+  final int count;
+
+  const _AnimatedCount({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 0.4),
+            end: Offset.zero,
+          ).animate(animation),
+          child: child,
+        ),
+      ),
+      child: Text('$count', key: ValueKey(count)),
     );
   }
 }
