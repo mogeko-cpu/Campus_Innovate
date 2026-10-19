@@ -33,6 +33,7 @@ the repository and `ISessionService` through constructor injection.
 - [`lib/core/category_style.dart`](lib/core/category_style.dart) — `CategoryStyle`: the color and icon a project category is drawn with, one entry per `listingCategories`, with a fallback for a category this map does not know yet.
 - [`lib/core/avatar_color.dart`](lib/core/avatar_color.dart) — `AvatarColor`: a color and two-letter initials derived from a name, deterministic so the same person is always the same color everywhere they appear.
 - [`lib/core/widgets/name_avatar.dart`](lib/core/widgets/name_avatar.dart) — `NameAvatar`, the one circle-with-initials widget every screen uses instead of building its own.
+- [`lib/core/poller.dart`](lib/core/poller.dart) — `Poller`: runs a function every few seconds, one run at a time, swallowing failures, pausable. ROBLE has no push channel, so every screen that should notice what other people do polls through this. `Poller.enabled` is switched off by the widget tests.
 - [`lib/core/theme_controller.dart`](lib/core/theme_controller.dart) — `ThemeController`: light/dark/system, persisted through `ILocalPreferences` and read before `runApp` so the first frame opens in the right theme.
 - [`lib/core/i_session_service.dart`](lib/core/i_session_service.dart) — Identity of the current user, implemented by [`RobleSessionService`](lib/core/roble/roble_session_service.dart) over the signed-in ROBLE account.
 - [`lib/core/i_local_preferences.dart`](lib/core/i_local_preferences.dart) — Storage contract with shared and encrypted adapters. The session uses the encrypted one; the theme choice uses it too, since it is not sensitive.
@@ -109,30 +110,55 @@ likes, views and comments to one owner.
 - [`domain/models/group.dart`](lib/features/groups/domain/models/group.dart) — `Group` entity, owner included as its first member.
 - [`domain/models/group_member.dart`](lib/features/groups/domain/models/group_member.dart) — One row of `group_members`, name copied in because ROBLE has no join.
 - [`domain/models/group_request.dart`](lib/features/groups/domain/models/group_request.dart) — Someone asking to be let in.
-- [`domain/models/group_request_status.dart`](lib/features/groups/domain/models/group_request_status.dart) — `pending` / `accepted` / `rejected` with Spanish labels.
+- [`domain/models/group_request_status.dart`](lib/features/groups/domain/models/group_request_status.dart) — `pending` / `accepted` / `rejected` with Spanish labels. Answered requests are now deleted, so in practice only `pending` rows are read.
+- [`domain/models/group_invitation.dart`](lib/features/groups/domain/models/group_invitation.dart) — A member asking somebody outside the group to join; a row exists only while it waits.
+- [`domain/models/group_message.dart`](lib/features/groups/domain/models/group_message.dart) — One line of a group's private chat.
 - [`domain/group_exception.dart`](lib/features/groups/domain/group_exception.dart) — A groups rule the user ran into.
-- [`domain/repositories/i_group_repository.dart`](lib/features/groups/domain/repositories/i_group_repository.dart) — Everything the UI is allowed to ask for.
+- [`domain/repositories/i_group_repository.dart`](lib/features/groups/domain/repositories/i_group_repository.dart) — Everything the UI is allowed to ask for, invitations included.
+- [`domain/repositories/i_group_chat_repository.dart`](lib/features/groups/domain/repositories/i_group_chat_repository.dart) — Read and send chat messages; members only.
 
 ### Data
 
 - [`data/datasources/i_group_source.dart`](lib/features/groups/data/datasources/i_group_source.dart) — Storage contract.
 - [`data/datasources/remote/roble_group_source.dart`](lib/features/groups/data/datasources/remote/roble_group_source.dart) — Three ROBLE tables. Deleting a group removes its members and requests first, so a failure halfway leaves the group still listed and still deletable.
-- [`data/repositories/group_repository.dart`](lib/features/groups/data/repositories/group_repository.dart) — Owns the rules: the owner cannot leave, accepting adds the member before marking the request.
+- [`data/repositories/group_repository.dart`](lib/features/groups/data/repositories/group_repository.dart) — Owns the rules: the owner cannot leave; accepting adds the member first and only then deletes the request or invitation; only somebody inside can invite; nobody can be invited twice or invited while their request is pending.
+- [`data/datasources/i_group_chat_source.dart`](lib/features/groups/data/datasources/i_group_chat_source.dart), [`remote/roble_group_chat_source.dart`](lib/features/groups/data/datasources/remote/roble_group_chat_source.dart) — The chat table. Reads the whole conversation (capped at 200 messages) because `read` filters by equality only.
+- [`data/repositories/group_chat_repository.dart`](lib/features/groups/data/repositories/group_chat_repository.dart) — Checks membership on every read and send, rejects empty or over-long lines.
 
 ### UI
 
-- [`ui/viewmodels/groups_view_model.dart`](lib/features/groups/ui/viewmodels/groups_view_model.dart) — My groups, the rest of the campus, and how many projects each has published.
-- [`ui/viewmodels/group_detail_view_model.dart`](lib/features/groups/ui/viewmodels/group_detail_view_model.dart) — One group: members, requests, projects, and every write that acts on them.
+- [`ui/viewmodels/groups_view_model.dart`](lib/features/groups/ui/viewmodels/groups_view_model.dart) — Invitations received, my groups, the rest of the campus, and how many projects each has published. Refreshes itself every 20 s.
+- [`ui/viewmodels/group_detail_view_model.dart`](lib/features/groups/ui/viewmodels/group_detail_view_model.dart) — One group: members, requests, invitations, projects, and every write that acts on them. Refreshes itself every 15 s, silently, and tells people when their request or invitation is answered.
+- [`ui/viewmodels/invite_members_view_model.dart`](lib/features/groups/ui/viewmodels/invite_members_view_model.dart) — Search the directory and invite somebody; says who is already invited or has already asked.
+- [`ui/viewmodels/group_chat_view_model.dart`](lib/features/groups/ui/viewmodels/group_chat_view_model.dart) — The conversation, polled every 5 s.
 - [`ui/viewmodels/create_group_view_model.dart`](lib/features/groups/ui/viewmodels/create_group_view_model.dart) — The creation form.
-- [`ui/views/`](lib/features/groups/ui/views) — `groups_page`, `group_detail_page`, `create_group_page`.
+- [`ui/views/`](lib/features/groups/ui/views) — `groups_page`, `group_detail_page`, `create_group_page`, `invite_members_page`, `group_chat_page`.
+- [`ui/widgets/invitation_card.dart`](lib/features/groups/ui/widgets/invitation_card.dart) — An invitation with its accept / reject buttons.
 - [`ui/widgets/group_card.dart`](lib/features/groups/ui/widgets/group_card.dart) — Group card with owner, member count and project count.
 - [`groups_dependencies.dart`](lib/features/groups/groups_dependencies.dart) — One binding per groups route.
 
-Asking to join, accepting, rejecting, removing someone and deleting the group all
-happen on the detail screen, so nobody has to remember where the other half of the
-job lives. Deleting a group is refused while it still has projects: other people
-applied to those and may be on their teams.
+Asking to join, accepting, rejecting, inviting, removing someone and deleting the
+group all happen on the detail screen, so nobody has to remember where the other
+half of the job lives. Deleting a group is refused while it still has projects:
+other people applied to those and may be on their teams.
 
+## Users feature
+
+The directory the invite screen searches. ROBLE cannot list accounts, so each
+person registers themselves when they open Home.
+
+- [`domain/models/app_user.dart`](lib/features/users/domain/models/app_user.dart), [`domain/repositories/i_user_repository.dart`](lib/features/users/domain/repositories/i_user_repository.dart) — The person and what the UI may ask for.
+- [`data/datasources/i_user_source.dart`](lib/features/users/data/datasources/i_user_source.dart), [`remote/roble_user_source.dart`](lib/features/users/data/datasources/remote/roble_user_source.dart) — `upsert` costs one read and no write once the row is current.
+- [`data/repositories/user_repository.dart`](lib/features/users/data/repositories/user_repository.dart) — Sorts by name.
+
+## Notifications feature
+
+- [`domain/models/`](lib/features/notifications/domain/models) — `AppNotification` (one row per recipient), `NotificationType`, and `NotificationTarget`: what opening it goes to, as a kind and an id rather than a route.
+- [`domain/notification_publisher.dart`](lib/features/notifications/domain/notification_publisher.dart) — Turns "something happened" into the right notifications, with the wording in one place. Best effort: a failure to notify never fails the action that caused it.
+- [`data/`](lib/features/notifications/data) — Source contract, ROBLE source (bulk insert, newest 100 per person) and repository.
+- [`ui/viewmodels/notification_center.dart`](lib/features/notifications/ui/viewmodels/notification_center.dart) — The one permanent controller behind the bell and the list: unread count, a 30 s poll, a toast for what is new.
+- [`ui/widgets/notification_bell.dart`](lib/features/notifications/ui/widgets/notification_bell.dart) — The bell on every tab; it starts the polling.
+- [`ui/views/notifications_page.dart`](lib/features/notifications/ui/views/notifications_page.dart) — The list; tapping one opens its project or group.
 ## Profile feature
 
 - [`ui/viewmodels/profile_view_model.dart`](lib/features/profile/ui/viewmodels/profile_view_model.dart) — A view across features: the account, the groups, what the user published, what they joined, the requests they sent, and how the campus received their projects.
@@ -175,7 +201,7 @@ network, and would leave rows behind for the next run to trip over.
 - [`test/features/listings/roble_listing_source_test.dart`](test/features/listings/roble_listing_source_test.dart) — The source against a fake ROBLE: ordering, member grouping, rollback, duplicates, full projects.
 - [`test/core/roble/roble_client_test.dart`](test/core/roble/roble_client_test.dart) — Transport over `MockClient`: the single refresh-and-retry, both row shapes, 429, and the UUID guard.
 - [`test/core/roble/roble_password_policy_test.dart`](test/core/roble/roble_password_policy_test.dart) — Every rule, and every symbol ROBLE accepts.
-- [`test/support/`](test/support) — `fake_roble_api.dart` (ROBLE's database endpoints over a map of tables, composite `UNIQUE` included), `in_memory_listing_source.dart`, `in_memory_group_source.dart` (seeded with one group the test user owns, since publishing needs one), `in_memory_engagement_source.dart`, `test_bindings.dart`, `memory_preferences.dart`.
+- [`test/support/`](test/support) — `fake_roble_api.dart` (ROBLE's database endpoints over a map of tables, composite `UNIQUE` included), `in_memory_listing_source.dart`, `in_memory_group_source.dart` (seeded with one group the test user owns, since publishing needs one), `in_memory_engagement_source.dart`, `in_memory_group_chat_source.dart`, `in_memory_user_source.dart`, `in_memory_notification_source.dart`, `test_bindings.dart` (also turns `Poller` off), `memory_preferences.dart`.
 
 ## Current implementation boundaries
 
@@ -185,4 +211,8 @@ network, and would leave rows behind for the next run to trip over.
 - Views are unique per person: reopening a project does not raise the number.
 - A project published before groups existed keeps `group_id` empty and shows as "Publicado sin grupo".
 - Deleting a group is refused while it still owns projects; the owner deletes each project first.
+- Answered group requests and invitations are deleted, not kept with a status; the notification is the record.
+- Nothing is pushed: screens poll (see `Poller`), so what another person does shows up after up to one interval.
+- A person can only be invited once they have opened the app since the `app_users` table existed.
+- The `notifications` table is never pruned; the screen shows the newest 100 per person.
 - Password reset and e-mail verification exist in the client; no screen calls them.

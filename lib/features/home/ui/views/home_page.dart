@@ -4,6 +4,8 @@ import 'package:get/get.dart';
 import '../../../../routes/app_routes.dart';
 import '../../../auth/ui/viewmodels/authentication_controller.dart';
 import '../../../listings/ui/widgets/listing_card.dart';
+import '../../../notifications/ui/viewmodels/notification_center.dart';
+import '../../../notifications/ui/widgets/notification_bell.dart';
 import '../../../shell/ui/widgets/app_bottom_nav.dart';
 import '../../../shell/ui/widgets/empty_state.dart';
 import '../viewmodels/home_view_model.dart';
@@ -45,6 +47,10 @@ class HomePage extends GetView<HomeViewModel> {
     );
 
     if (confirmed != true) return;
+
+    // Before the session goes: the next person to sign in on this device must
+    // not see this one's unread count for a moment.
+    Get.find<NotificationCenter>().reset();
 
     await Get.find<AuthenticationController>().logOut();
     await Get.offAllNamed(AppRoutes.login);
@@ -172,6 +178,7 @@ class _Greeting extends StatelessWidget {
                   ),
                 ),
               ),
+              NotificationBell(color: colors.onPrimary),
               IconButton(
                 onPressed: onLogOut,
                 tooltip: 'Cerrar sesión',

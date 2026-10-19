@@ -6,13 +6,21 @@ import '../../../listings/domain/models/listing.dart';
 import '../../../listings/domain/models/listing_stats.dart';
 import '../../../listings/domain/repositories/i_engagement_repository.dart';
 import '../../../listings/domain/repositories/i_listing_repository.dart';
+import '../../../users/domain/models/app_user.dart';
+import '../../../users/domain/repositories/i_user_repository.dart';
 
 class HomeViewModel extends GetxController {
   final IListingRepository _repository;
   final IEngagementRepository _engagement;
+  final IUserRepository _users;
   final ISessionService _session;
 
-  HomeViewModel(this._repository, this._engagement, this._session);
+  HomeViewModel(
+    this._repository,
+    this._engagement,
+    this._users,
+    this._session,
+  );
 
   final RxList<Listing> featuredListings = <Listing>[].obs;
   final RxList<Listing> myListings = <Listing>[].obs;
@@ -36,7 +44,27 @@ class HomeViewModel extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    _registerSelf();
     load();
+  }
+
+  /// Puts this person in the directory the others search when they invite
+  /// somebody to a group. Home is where every way of signing in ends — login,
+  /// sign-up, a restored session, Google — so it is the one place that covers
+  /// them all. Best effort: failing to register must never get in the way of
+  /// the screen.
+  Future<void> _registerSelf() async {
+    try {
+      await _users.registerCurrentUser(
+        AppUser(
+          id: _session.currentUserId,
+          name: _session.currentUserName,
+          email: _session.currentUserEmail,
+        ),
+      );
+    } catch (_) {
+      // See above.
+    }
   }
 
   Future<void> load() async {

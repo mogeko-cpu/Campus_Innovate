@@ -4,6 +4,7 @@ import '../../../../core/error_message.dart';
 import '../../../../core/i_session_service.dart';
 import '../../../groups/domain/models/group.dart';
 import '../../../groups/domain/repositories/i_group_repository.dart';
+import '../../../notifications/domain/notification_publisher.dart';
 import '../../domain/listing_exception.dart';
 import '../../domain/models/listing.dart';
 import '../../domain/models/listing_category.dart';
@@ -12,9 +13,15 @@ import '../../domain/repositories/i_listing_repository.dart';
 class CreateListingViewModel extends GetxController {
   final IListingRepository _repository;
   final IGroupRepository _groups;
+  final NotificationPublisher _notifier;
   final ISessionService _session;
 
-  CreateListingViewModel(this._repository, this._groups, this._session);
+  CreateListingViewModel(
+    this._repository,
+    this._groups,
+    this._notifier,
+    this._session,
+  );
 
   final RxString category = listingCategories.first.obs;
   final RxInt maxMembers = 4.obs;
@@ -108,7 +115,21 @@ class CreateListingViewModel extends GetxController {
         groupName: group.name,
       );
 
-      return await _repository.createListing(draft);
+      final saved = await _repository.createListing(draft);
+
+      // The rest of the group finds out. Best effort: the project is already
+      // published, and a bell that failed to ring is not a reason to say it
+      // was not.
+      await _notifier.ideaPublished(
+        listingId: saved.id,
+        listingTitle: saved.title,
+        groupName: group.name,
+        authorId: _session.currentUserId,
+        authorName: _session.currentUserName,
+        recipientIds: group.memberIds,
+      );
+
+      return saved;
     } catch (failure) {
       // ROBLE's own wording is the useful part here: "espera 40 segundos" or
       // "tu sesión expiró" tell the user what to do; a generic line does not.

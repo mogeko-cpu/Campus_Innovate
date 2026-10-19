@@ -4,8 +4,10 @@ import '../features/auth/ui/views/login_page.dart';
 import '../features/auth/ui/views/signup_page.dart';
 import '../features/groups/groups_dependencies.dart';
 import '../features/groups/ui/views/create_group_page.dart';
+import '../features/groups/ui/views/group_chat_page.dart';
 import '../features/groups/ui/views/group_detail_page.dart';
 import '../features/groups/ui/views/groups_page.dart';
+import '../features/groups/ui/views/invite_members_page.dart';
 import '../features/home/home_dependencies.dart';
 import '../features/home/ui/views/home_page.dart';
 import '../features/listings/listings_dependencies.dart';
@@ -14,6 +16,7 @@ import '../features/listings/ui/views/join_request_page.dart';
 import '../features/listings/ui/views/listing_detail_page.dart';
 import '../features/listings/ui/views/listings_page.dart';
 import '../features/listings/ui/views/ranking_page.dart';
+import '../features/notifications/ui/views/notifications_page.dart';
 import '../features/profile/profile_dependencies.dart';
 import '../features/profile/ui/views/profile_page.dart';
 import 'app_routes.dart';
@@ -68,6 +71,22 @@ class AppPages {
       name: AppRoutes.groupDetail,
       page: () => const GroupDetailPage(),
       binding: GroupDetailBinding(),
+    ),
+    GetPage(
+      name: AppRoutes.inviteMembers,
+      page: () => const InviteMembersPage(),
+      binding: InviteMembersBinding(),
+    ),
+    GetPage(
+      name: AppRoutes.groupChat,
+      page: () => const GroupChatPage(),
+      binding: GroupChatBinding(),
+    ),
+    // No binding: the notification center is permanent, since the bell on every
+    // tab and this list both read the same instance.
+    GetPage(
+      name: AppRoutes.notifications,
+      page: () => const NotificationsPage(),
     ),
     GetPage(
       name: AppRoutes.profile,

@@ -1,4 +1,5 @@
 import '../../domain/models/group.dart';
+import '../../domain/models/group_invitation.dart';
 import '../../domain/models/group_member.dart';
 import '../../domain/models/group_request.dart';
 import '../../domain/models/group_request_status.dart';
@@ -40,4 +41,24 @@ abstract class IGroupSource {
   Future<GroupRequest?> getRequestById(String id);
 
   Future<void> updateRequestStatus(String requestId, GroupRequestStatus status);
+
+  /// Removes one request. Answered requests are deleted rather than kept with a
+  /// status: what happened travels in a notification, and a row that stays
+  /// behind is what used to leave an answered request sitting on the screen and
+  /// stop the person from ever asking again.
+  Future<void> deleteRequest(String requestId);
+
+  /// Stores [invitation] — which arrives without an id — and returns it with the
+  /// id the database assigned. A second invitation to the same person for the
+  /// same group is refused with a [GroupException].
+  Future<GroupInvitation> createInvitation(GroupInvitation invitation);
+
+  /// Invitations still waiting for an answer, oldest first.
+  Future<List<GroupInvitation>> getInvitationsForGroup(String groupId);
+
+  Future<List<GroupInvitation>> getInvitationsForInvitee(String inviteeId);
+
+  Future<GroupInvitation?> getInvitationById(String id);
+
+  Future<void> deleteInvitation(String invitationId);
 }

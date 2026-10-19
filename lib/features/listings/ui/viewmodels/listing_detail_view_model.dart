@@ -2,6 +2,8 @@ import 'package:get/get.dart';
 
 import '../../../../core/error_message.dart';
 import '../../../../core/i_session_service.dart';
+import '../../../groups/domain/repositories/i_group_repository.dart';
+import '../../../notifications/domain/notification_publisher.dart';
 import '../../domain/models/join_request.dart';
 import '../../domain/models/listing.dart';
 import '../../domain/models/listing_comment.dart';
@@ -13,9 +15,17 @@ import '../../domain/repositories/i_listing_repository.dart';
 class ListingDetailViewModel extends GetxController {
   final IListingRepository _repository;
   final IEngagementRepository _engagement;
+  final IGroupRepository _groups;
+  final NotificationPublisher _notifier;
   final ISessionService _session;
 
-  ListingDetailViewModel(this._repository, this._engagement, this._session);
+  ListingDetailViewModel(
+    this._repository,
+    this._engagement,
+    this._groups,
+    this._notifier,
+    this._session,
+  );
 
   final Rxn<Listing> listing = Rxn<Listing>();
   final Rxn<JoinRequest> myRequest = Rxn<JoinRequest>();
@@ -150,6 +160,8 @@ class ListingDetailViewModel extends GetxController {
       comments.insert(0, stored);
       stats.value = stats.value.copyWith(comments: stats.value.comments + 1);
 
+      await _notifyComment(current, body);
+
       return true;
     } catch (failure) {
       error.value = errorMessage(
@@ -161,6 +173,34 @@ class ListingDetailViewModel extends GetxController {
     } finally {
       isWorking.value = false;
     }
+  }
+
+  /// Tells everybody involved in the project: its creator, its team, and the
+  /// members of the group that published it.
+  ///
+  /// Reading the group can fail, and that must not turn a comment that was
+  /// stored into an error: without it, the creator and the team are still told.
+  Future<void> _notifyComment(Listing current, String body) async {
+    final recipients = <String>{current.creatorId, ...current.memberIds};
+
+    if (current.belongsToGroup) {
+      try {
+        final group = await _groups.getGroupById(current.groupId);
+
+        if (group != null) recipients.addAll(group.memberIds);
+      } catch (_) {
+        // See above.
+      }
+    }
+
+    await _notifier.commentAdded(
+      listingId: current.id,
+      listingTitle: current.title,
+      authorId: _session.currentUserId,
+      authorName: _session.currentUserName,
+      comment: body,
+      recipientIds: recipients,
+    );
   }
 
   /// Only the author of a comment can remove it — the project's creator does not

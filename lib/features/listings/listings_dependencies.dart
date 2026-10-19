@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 
 import '../../core/i_session_service.dart';
 import '../groups/domain/repositories/i_group_repository.dart';
+import '../notifications/domain/notification_publisher.dart';
 import 'domain/repositories/i_engagement_repository.dart';
 import 'domain/repositories/i_listing_repository.dart';
 import 'ui/viewmodels/create_listing_view_model.dart';
@@ -31,6 +32,7 @@ class CreateListingBinding extends Bindings {
       () => CreateListingViewModel(
         Get.find<IListingRepository>(),
         Get.find<IGroupRepository>(),
+        Get.find<NotificationPublisher>(),
         Get.find<ISessionService>(),
       ),
     );
@@ -44,13 +46,21 @@ class ListingDetailBinding extends Bindings {
       () => ListingDetailViewModel(
         Get.find<IListingRepository>(),
         Get.find<IEngagementRepository>(),
+        Get.find<IGroupRepository>(),
+        Get.find<NotificationPublisher>(),
         Get.find<ISessionService>(),
       ),
     );
 
     // The creator's inbox lives on this screen, so its view model is built with
     // it. Lazy, so a visitor who is not the creator never pays for it.
-    Get.lazyPut(() => RequestsViewModel(Get.find<IListingRepository>()));
+    Get.lazyPut(
+      () => RequestsViewModel(
+        Get.find<IListingRepository>(),
+        Get.find<NotificationPublisher>(),
+        Get.find<ISessionService>(),
+      ),
+    );
   }
 }
 
@@ -60,6 +70,7 @@ class JoinRequestBinding extends Bindings {
     Get.lazyPut(
       () => JoinRequestViewModel(
         Get.find<IListingRepository>(),
+        Get.find<NotificationPublisher>(),
         Get.find<ISessionService>(),
       ),
     );

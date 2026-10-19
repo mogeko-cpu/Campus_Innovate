@@ -52,4 +52,18 @@ abstract final class RobleConfig {
   static const String listingReactionsTable = 'listing_reactions';
   static const String listingViewsTable = 'listing_views';
   static const String listingCommentsTable = 'listing_comments';
+
+  /// People the app has seen sign in: what "invite someone to my group" searches.
+  /// ROBLE keeps accounts in its auth service and offers no way to list them, so
+  /// each person registers themselves here when they open the app.
+  static const String appUsersTable = 'app_users';
+
+  /// A member asking someone outside the group to join it.
+  static const String groupInvitationsTable = 'group_invitations';
+
+  /// The group chat, apart from the comments under a project.
+  static const String groupMessagesTable = 'group_messages';
+
+  /// One row per person who has to be told about something.
+  static const String notificationsTable = 'notifications';
 }

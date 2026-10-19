@@ -4,18 +4,37 @@ import 'package:get/get.dart';
 import '../../../../routes/app_routes.dart';
 import '../../../shell/ui/widgets/app_bottom_nav.dart';
 import '../../../shell/ui/widgets/empty_state.dart';
+import '../../../notifications/ui/widgets/notification_bell.dart';
 import '../../../shell/ui/widgets/gradient_header.dart';
 import '../../domain/models/group.dart';
 import '../viewmodels/groups_view_model.dart';
 import '../widgets/group_card.dart';
+import '../widgets/invitation_card.dart';
 
 /// Group management: the teams you belong to and the ones you can ask to join.
 class GroupsPage extends GetView<GroupsViewModel> {
   const GroupsPage({super.key});
 
+  /// The timer is paused while another screen is on top, so the two are not
+  /// both asking ROBLE about the same groups.
   Future<void> _openAndRefresh(String route) async {
+    controller.pauseRefresh();
     await Get.toNamed(route);
-    await controller.load();
+    controller.resumeRefresh();
+    await controller.load(silent: true);
+  }
+
+  Future<void> _answer(
+    Future<bool> Function() action, {
+    required String success,
+  }) async {
+    final done = await action();
+
+    Get.snackbar(
+      done ? 'Listo' : 'No se pudo responder',
+      done ? success : controller.lastActionError ?? 'Intenta de nuevo',
+      snackPosition: SnackPosition.BOTTOM,
+    );
   }
 
   @override
@@ -24,6 +43,7 @@ class GroupsPage extends GetView<GroupsViewModel> {
       appBar: AppBar(
         title: const Text('Grupos'),
         automaticallyImplyLeading: false,
+        actions: const [NotificationBell()],
       ),
       bottomNavigationBar: const AppBottomNav(current: AppTab.groups),
       floatingActionButton: FloatingActionButton.extended(
@@ -62,6 +82,28 @@ class GroupsPage extends GetView<GroupsViewModel> {
                     ('${controller.otherGroups.length}', 'en el campus'),
                   ],
                 ),
+                if (controller.invitations.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  _SectionHeader(
+                    title: 'Invitaciones (${controller.invitations.length})',
+                  ),
+                  const SizedBox(height: 12),
+                  for (final invitation in controller.invitations)
+                    InvitationCard(
+                      invitation: invitation,
+                      isBusy: controller.isWorking.value,
+                      onOpenGroup: () =>
+                          _openAndRefresh(AppRoutes.groupOf(invitation.groupId)),
+                      onAccept: () => _answer(
+                        () => controller.acceptInvitation(invitation),
+                        success: 'Ya eres parte de ${invitation.groupName}',
+                      ),
+                      onReject: () => _answer(
+                        () => controller.rejectInvitation(invitation),
+                        success: 'Invitación rechazada',
+                      ),
+                    ),
+                ],
                 const SizedBox(height: 24),
                 const _SectionHeader(title: 'Mis grupos'),
                 const SizedBox(height: 12),
@@ -111,7 +153,9 @@ class GroupsPage extends GetView<GroupsViewModel> {
     final request = controller.myRequestFor(group);
     if (request == null) return null;
 
-    return request.isPending ? 'Solicitud pendiente' : request.status.label;
+    // Only pending requests reach this screen: an answered one is deleted, and
+    // what happened arrives as a notification.
+    return 'Solicitud pendiente';
   }
 }
 

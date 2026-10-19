@@ -4,6 +4,7 @@ import '../../../../../core/roble/roble_duplicate.dart';
 import '../../../../../core/roble/roble_exception.dart';
 import '../../../domain/group_exception.dart';
 import '../../../domain/models/group.dart';
+import '../../../domain/models/group_invitation.dart';
 import '../../../domain/models/group_member.dart';
 import '../../../domain/models/group_request.dart';
 import '../../../domain/models/group_request_status.dart';
@@ -119,8 +120,20 @@ class RobleGroupSource implements IGroupSource {
     // halfway leaves the group row in place, still listed and still deletable.
     // The opposite order would leave members and requests pointing at a group
     // nobody can open.
+    //
+    // The chat goes too, even though it has a source of its own: its rows only
+    // make sense inside this group, and whoever deletes the group is the one who
+    // knows it is gone. A long conversation is one request per message, so this
+    // can run into ROBLE's rate limit; the message says how long to wait, and
+    // running it again resumes where it stopped.
     await _deleteRowsWhere(RobleConfig.groupMembersTable, 'group_id', groupId);
     await _deleteRowsWhere(RobleConfig.groupRequestsTable, 'group_id', groupId);
+    await _deleteRowsWhere(
+      RobleConfig.groupInvitationsTable,
+      'group_id',
+      groupId,
+    );
+    await _deleteRowsWhere(RobleConfig.groupMessagesTable, 'group_id', groupId);
 
     await _client.delete(
       tableName: RobleConfig.groupsTable,
@@ -240,6 +253,93 @@ class RobleGroupSource implements IGroupSource {
     );
   }
 
+  @override
+  Future<void> deleteRequest(String requestId) async {
+    await _client.delete(
+      tableName: RobleConfig.groupRequestsTable,
+      idValue: requestId,
+    );
+  }
+
+  @override
+  Future<GroupInvitation> createInvitation(GroupInvitation invitation) async {
+    final Map<String, dynamic> row;
+
+    try {
+      row = await _client.insertOne(RobleConfig.groupInvitationsTable, {
+        'group_id': invitation.groupId,
+        'group_name': invitation.groupName,
+        'inviter_id': invitation.inviterId,
+        'inviter_name': invitation.inviterName,
+        'invitee_id': invitation.inviteeId,
+        'invitee_name': invitation.inviteeName,
+        'created_at': _now(),
+      });
+    } on RobleException catch (error) {
+      if (isDuplicateRow(error)) {
+        throw const GroupException(
+          'Esta persona ya tiene una invitación pendiente a este grupo.',
+        );
+      }
+      rethrow;
+    }
+
+    return invitation.copyWith(id: row['_id']?.toString() ?? '');
+  }
+
+  @override
+  Future<List<GroupInvitation>> getInvitationsForGroup(String groupId) async {
+    if (!RobleClient.isRowId(groupId)) return const [];
+
+    final rows = await _client.read(
+      RobleConfig.groupInvitationsTable,
+      filters: {'group_id': groupId},
+    );
+
+    rows.sort(
+      (a, b) => _dateOf(a['created_at']).compareTo(_dateOf(b['created_at'])),
+    );
+
+    return rows.map(_invitationFrom).whereType<GroupInvitation>().toList();
+  }
+
+  @override
+  Future<List<GroupInvitation>> getInvitationsForInvitee(
+    String inviteeId,
+  ) async {
+    final rows = await _client.read(
+      RobleConfig.groupInvitationsTable,
+      filters: {'invitee_id': inviteeId},
+    );
+
+    // Newest first: the one that just arrived is the one being looked for.
+    rows.sort(
+      (a, b) => _dateOf(b['created_at']).compareTo(_dateOf(a['created_at'])),
+    );
+
+    return rows.map(_invitationFrom).whereType<GroupInvitation>().toList();
+  }
+
+  @override
+  Future<GroupInvitation?> getInvitationById(String id) async {
+    if (!RobleClient.isRowId(id)) return null;
+
+    final rows = await _client.read(
+      RobleConfig.groupInvitationsTable,
+      filters: {'_id': id},
+    );
+
+    return rows.isEmpty ? null : _invitationFrom(rows.first);
+  }
+
+  @override
+  Future<void> deleteInvitation(String invitationId) async {
+    await _client.delete(
+      tableName: RobleConfig.groupInvitationsTable,
+      idValue: invitationId,
+    );
+  }
+
   // ------------------------------------------------------------- helpers
 
   Future<void> _addMemberRow(GroupMember member) async {
@@ -318,6 +418,22 @@ class RobleGroupSource implements IGroupSource {
       ownerId: row['owner_id']?.toString() ?? '',
       ownerName: row['owner_name']?.toString() ?? '',
       members: membersByGroup[id] ?? const [],
+    );
+  }
+
+  GroupInvitation? _invitationFrom(Map<String, dynamic> row) {
+    final id = row['_id']?.toString();
+    final groupId = row['group_id']?.toString();
+    if (id == null || id.isEmpty || groupId == null) return null;
+
+    return GroupInvitation(
+      id: id,
+      groupId: groupId,
+      groupName: row['group_name']?.toString() ?? '',
+      inviterId: row['inviter_id']?.toString() ?? '',
+      inviterName: row['inviter_name']?.toString() ?? 'Un integrante',
+      inviteeId: row['invitee_id']?.toString() ?? '',
+      inviteeName: row['invitee_name']?.toString() ?? 'Estudiante',
     );
   }
 

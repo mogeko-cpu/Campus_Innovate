@@ -144,7 +144,10 @@ class ListingDetailPage extends GetView<ListingDetailViewModel> {
               const SizedBox(height: 32),
               _Section(
                 title: 'Solicitudes recibidas',
-                child: _RequestsInbox(listingId: listing.id),
+                child: _RequestsInbox(
+                  listingId: listing.id,
+                  listingTitle: listing.title,
+                ),
               ),
             ],
             const SizedBox(height: 32),
@@ -330,8 +333,9 @@ class _JoinAction extends StatelessWidget {
 /// pays for the read.
 class _RequestsInbox extends StatefulWidget {
   final String listingId;
+  final String listingTitle;
 
-  const _RequestsInbox({required this.listingId});
+  const _RequestsInbox({required this.listingId, required this.listingTitle});
 
   @override
   State<_RequestsInbox> createState() => _RequestsInboxState();
@@ -345,7 +349,7 @@ class _RequestsInboxState extends State<_RequestsInbox> {
   @override
   void initState() {
     super.initState();
-    _requests.load(widget.listingId);
+    _requests.load(widget.listingId, listingTitle: widget.listingTitle);
   }
 
   Future<void> _resolve({

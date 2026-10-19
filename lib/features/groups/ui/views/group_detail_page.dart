@@ -6,9 +6,11 @@ import '../../../../routes/app_routes.dart';
 import '../../../shell/ui/widgets/empty_state.dart';
 import '../../../shell/ui/widgets/info_banner.dart';
 import '../../domain/models/group.dart';
+import '../../domain/models/group_invitation.dart';
 import '../../domain/models/group_member.dart';
 import '../../domain/models/group_request.dart';
 import '../viewmodels/group_detail_view_model.dart';
+import '../widgets/invitation_card.dart';
 
 /// Everything about one group in a single screen: its people, the requests
 /// waiting on the owner, and what the group has published.
@@ -20,6 +22,18 @@ class GroupDetailPage extends GetView<GroupDetailViewModel> {
         message,
         snackPosition: SnackPosition.BOTTOM,
       );
+
+  /// Opens another screen on top of this one and comes back to a fresh group.
+  ///
+  /// The timer is paused while the other screen is up: the chat and the invite
+  /// list poll for themselves, and two screens asking ROBLE about the same group
+  /// at once only spends the rate limit.
+  Future<void> _openRoute(String route) async {
+    controller.pauseRefresh();
+    await Get.toNamed(route);
+    controller.resumeRefresh();
+    await controller.load(silent: true);
+  }
 
   /// Asks for a short note and sends the request.
   Future<void> _askToJoin() async {
@@ -69,8 +83,8 @@ class GroupDetailPage extends GetView<GroupDetailViewModel> {
       AlertDialog(
         title: const Text('¿Eliminar el grupo?'),
         content: const Text(
-          'Se van a borrar sus integrantes y las solicitudes pendientes. '
-          'Esta acción no se puede deshacer.',
+          'Se van a borrar sus integrantes, las solicitudes e invitaciones '
+          'pendientes y el chat. Esta acción no se puede deshacer.',
         ),
         actions: [
           TextButton(
@@ -178,9 +192,37 @@ class GroupDetailPage extends GetView<GroupDetailViewModel> {
                 isMember: controller.isMember,
                 isBusy: controller.isWorking.value,
                 myRequest: controller.myRequest.value,
+                myInvitation: controller.myInvitation.value,
                 onAskToJoin: _askToJoin,
                 onLeave: _confirmLeave,
+                onAcceptInvitation: () async {
+                  final done = await controller.acceptMyInvitation();
+
+                  _toast(
+                    done ? 'Bienvenido al grupo' : 'Error',
+                    done
+                        ? 'Ya eres integrante'
+                        : controller.error.value ?? 'No se pudo aceptar',
+                  );
+                },
+                onRejectInvitation: () async {
+                  final done = await controller.rejectMyInvitation();
+
+                  _toast(
+                    done ? 'Invitación rechazada' : 'Error',
+                    done
+                        ? 'Se avisó a quien te invitó'
+                        : controller.error.value ?? 'No se pudo rechazar',
+                  );
+                },
               ),
+              if (controller.isInside) ...[
+                const SizedBox(height: 12),
+                _MemberActions(
+                  onChat: () => _openRoute(AppRoutes.chatOf(group.id)),
+                  onInvite: () => _openRoute(AppRoutes.inviteOf(group.id)),
+                ),
+              ],
               const SizedBox(height: 28),
               _SectionTitle(
                 title: 'Integrantes',
@@ -239,11 +281,36 @@ class GroupDetailPage extends GetView<GroupDetailViewModel> {
                         _toast(
                           done ? 'Solicitud rechazada' : 'Error',
                           done
-                              ? 'Se notificará en su perfil'
+                              ? 'Se le avisó a la persona'
                               : controller.error.value ?? 'No se pudo rechazar',
                         );
                       },
                     ),
+              ],
+              if (controller.isInside && controller.invitations.isNotEmpty) ...[
+                const SizedBox(height: 28),
+                _SectionTitle(
+                  title: 'Invitaciones enviadas',
+                  trailing: '${controller.invitations.length}',
+                ),
+                const SizedBox(height: 10),
+                for (final invitation in controller.invitations)
+                  _InvitationTile(
+                    invitation: invitation,
+                    canCancel: controller.canCancel(invitation),
+                    isBusy: controller.isWorking.value,
+                    onCancel: () async {
+                      final done =
+                          await controller.cancelInvitation(invitation.id);
+
+                      _toast(
+                        done ? 'Invitación cancelada' : 'Error',
+                        done
+                            ? 'Ya no está pendiente'
+                            : controller.error.value ?? 'No se pudo cancelar',
+                      );
+                    },
+                  ),
               ],
               const SizedBox(height: 28),
               _SectionTitle(
@@ -268,10 +335,7 @@ class GroupDetailPage extends GetView<GroupDetailViewModel> {
                         'integrantes · ${listing.category}',
                       ),
                       trailing: const Icon(Icons.chevron_right),
-                      onTap: () async {
-                        await Get.toNamed(AppRoutes.detailOf(listing.id));
-                        await controller.load();
-                      },
+                      onTap: () => _openRoute(AppRoutes.detailOf(listing.id)),
                     ),
                   ),
             ],
@@ -339,8 +403,11 @@ class _JoinAction extends StatelessWidget {
   final bool isMember;
   final bool isBusy;
   final GroupRequest? myRequest;
+  final GroupInvitation? myInvitation;
   final Future<void> Function() onAskToJoin;
   final Future<void> Function() onLeave;
+  final Future<void> Function() onAcceptInvitation;
+  final Future<void> Function() onRejectInvitation;
 
   /// Every flag arrives as a parameter instead of being read off the view model
   /// here: the reactive reads have to happen inside the `Obx` that builds this
@@ -350,8 +417,11 @@ class _JoinAction extends StatelessWidget {
     required this.isMember,
     required this.isBusy,
     required this.myRequest,
+    required this.myInvitation,
     required this.onAskToJoin,
     required this.onLeave,
+    required this.onAcceptInvitation,
+    required this.onRejectInvitation,
   });
 
   @override
@@ -369,6 +439,18 @@ class _JoinAction extends StatelessWidget {
         style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
         icon: const Icon(Icons.logout),
         label: const Text('Salir del grupo'),
+      );
+    }
+
+    final invitation = myInvitation;
+
+    // Somebody invited this person: the answer is the only thing to ask for.
+    if (invitation != null) {
+      return InvitationCard(
+        invitation: invitation,
+        isBusy: isBusy,
+        onAccept: onAcceptInvitation,
+        onReject: onRejectInvitation,
       );
     }
 
@@ -514,3 +596,70 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
+
+/// The two things somebody inside the group can do that an outsider cannot:
+/// talk to the others and bring somebody in.
+class _MemberActions extends StatelessWidget {
+  final VoidCallback onChat;
+  final VoidCallback onInvite;
+
+  const _MemberActions({required this.onChat, required this.onInvite});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: FilledButton.tonalIcon(
+            onPressed: onChat,
+            icon: const Icon(Icons.forum_outlined),
+            label: const Text('Chat'),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: FilledButton.tonalIcon(
+            onPressed: onInvite,
+            icon: const Icon(Icons.person_add_alt_1_outlined),
+            label: const Text('Invitar'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// An invitation somebody inside the group sent and nobody has answered.
+class _InvitationTile extends StatelessWidget {
+  final GroupInvitation invitation;
+  final bool canCancel;
+  final bool isBusy;
+  final Future<void> Function() onCancel;
+
+  const _InvitationTile({
+    required this.invitation,
+    required this.canCancel,
+    required this.isBusy,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        leading: NameAvatar(name: invitation.inviteeName, radius: 18),
+        title: Text(invitation.inviteeName),
+        subtitle: Text('Invitó ${invitation.inviterName} · pendiente'),
+        trailing: canCancel
+            ? IconButton(
+                tooltip: 'Cancelar invitación',
+                onPressed: isBusy ? null : onCancel,
+                icon: const Icon(Icons.close),
+              )
+            : null,
+      ),
+    );
+  }
+}

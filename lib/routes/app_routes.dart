@@ -15,8 +15,12 @@ abstract class AppRoutes {
   static const groups = '/groups';
   static const createGroup = '/groups/create';
   static const groupDetail = '/groups/detail/:id';
+  static const inviteMembers = '/groups/invite/:id';
+  static const groupChat = '/groups/chat/:id';
 
   static const profile = '/profile';
+
+  static const notifications = '/notifications';
 
   /// Ids in the path are the `_id` UUIDs of the rows.
   static String detailOf(String id) => '/listings/detail/$id';
@@ -24,4 +28,8 @@ abstract class AppRoutes {
   static String joinOf(String id) => '/listings/join/$id';
 
   static String groupOf(String id) => '/groups/detail/$id';
+
+  static String inviteOf(String id) => '/groups/invite/$id';
+
+  static String chatOf(String id) => '/groups/chat/$id';
 }

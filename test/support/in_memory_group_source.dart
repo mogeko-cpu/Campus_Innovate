@@ -1,6 +1,7 @@
 import 'package:campus_innovate/features/groups/data/datasources/i_group_source.dart';
 import 'package:campus_innovate/features/groups/domain/group_exception.dart';
 import 'package:campus_innovate/features/groups/domain/models/group.dart';
+import 'package:campus_innovate/features/groups/domain/models/group_invitation.dart';
 import 'package:campus_innovate/features/groups/domain/models/group_member.dart';
 import 'package:campus_innovate/features/groups/domain/models/group_request.dart';
 import 'package:campus_innovate/features/groups/domain/models/group_request_status.dart';
@@ -30,6 +31,7 @@ class InMemoryGroupSource implements IGroupSource {
   ];
 
   final List<GroupRequest> _requests = [];
+  final List<GroupInvitation> _invitations = [];
 
   var _nextId = 300;
 
@@ -69,6 +71,7 @@ class InMemoryGroupSource implements IGroupSource {
   Future<void> deleteGroup(String groupId) async {
     _groups.removeWhere((group) => group.id == groupId);
     _requests.removeWhere((request) => request.groupId == groupId);
+    _invitations.removeWhere((invitation) => invitation.groupId == groupId);
   }
 
   @override
@@ -153,5 +156,53 @@ class InMemoryGroupSource implements IGroupSource {
     }
 
     _requests[index] = _requests[index].copyWith(status: status);
+  }
+
+  @override
+  Future<void> deleteRequest(String requestId) async {
+    _requests.removeWhere((request) => request.id == requestId);
+  }
+
+  @override
+  Future<GroupInvitation> createInvitation(GroupInvitation invitation) async {
+    final duplicate = _invitations.any(
+      (existing) =>
+          existing.groupId == invitation.groupId &&
+          existing.inviteeId == invitation.inviteeId,
+    );
+
+    // The `UNIQUE (group_id, invitee_id)` of the real table.
+    if (duplicate) {
+      throw const GroupException(
+        'Esta persona ya tiene una invitación pendiente a este grupo.',
+      );
+    }
+
+    final stored = invitation.copyWith(id: _newId('group_invitation'));
+    _invitations.add(stored);
+
+    return stored;
+  }
+
+  @override
+  Future<List<GroupInvitation>> getInvitationsForGroup(String groupId) async =>
+      _invitations.where((item) => item.groupId == groupId).toList();
+
+  @override
+  Future<List<GroupInvitation>> getInvitationsForInvitee(
+    String inviteeId,
+  ) async =>
+      _invitations.where((item) => item.inviteeId == inviteeId).toList();
+
+  @override
+  Future<GroupInvitation?> getInvitationById(String id) async {
+    final index = _invitations.indexWhere((item) => item.id == id);
+
+    return index == -1 ? null : _invitations[index];
+  }
+
+  @override
+  Future<void> deleteInvitation(String invitationId) async {
+    _invitations.removeWhere((item) => item.id == invitationId);
   }
 }

@@ -14,9 +14,13 @@ import '../features/auth/data/datasources/remote/roble_authentication_source.dar
 import '../features/auth/data/repositories/auth_repository.dart';
 import '../features/auth/domain/repositories/i_auth_repository.dart';
 import '../features/auth/ui/viewmodels/authentication_controller.dart';
+import '../features/groups/data/datasources/i_group_chat_source.dart';
 import '../features/groups/data/datasources/i_group_source.dart';
+import '../features/groups/data/datasources/remote/roble_group_chat_source.dart';
 import '../features/groups/data/datasources/remote/roble_group_source.dart';
+import '../features/groups/data/repositories/group_chat_repository.dart';
 import '../features/groups/data/repositories/group_repository.dart';
+import '../features/groups/domain/repositories/i_group_chat_repository.dart';
 import '../features/groups/domain/repositories/i_group_repository.dart';
 import '../features/listings/data/datasources/i_engagement_source.dart';
 import '../features/listings/data/datasources/i_listing_source.dart';
@@ -26,6 +30,16 @@ import '../features/listings/data/repositories/engagement_repository.dart';
 import '../features/listings/data/repositories/listing_repository.dart';
 import '../features/listings/domain/repositories/i_engagement_repository.dart';
 import '../features/listings/domain/repositories/i_listing_repository.dart';
+import '../features/notifications/data/datasources/i_notification_source.dart';
+import '../features/notifications/data/datasources/remote/roble_notification_source.dart';
+import '../features/notifications/data/repositories/notification_repository.dart';
+import '../features/notifications/domain/notification_publisher.dart';
+import '../features/notifications/domain/repositories/i_notification_repository.dart';
+import '../features/notifications/ui/viewmodels/notification_center.dart';
+import '../features/users/data/datasources/i_user_source.dart';
+import '../features/users/data/datasources/remote/roble_user_source.dart';
+import '../features/users/data/repositories/user_repository.dart';
+import '../features/users/domain/repositories/i_user_repository.dart';
 import '../routes/app_routes.dart';
 
 /// Composition root: builds the object graph once and hands it to GetX.
@@ -141,6 +155,43 @@ class AppBindings extends Bindings {
     Get.put<IGroupSource>(RobleGroupSource(client), permanent: true);
     Get.put<IGroupRepository>(
       GroupRepository(Get.find<IGroupSource>()),
+      permanent: true,
+    );
+
+    // The chat checks membership through the group repository, so it comes
+    // after it.
+    Get.put<IGroupChatSource>(RobleGroupChatSource(client), permanent: true);
+    Get.put<IGroupChatRepository>(
+      GroupChatRepository(
+        Get.find<IGroupChatSource>(),
+        Get.find<IGroupRepository>(),
+      ),
+      permanent: true,
+    );
+
+    Get.put<IUserSource>(RobleUserSource(client), permanent: true);
+    Get.put<IUserRepository>(
+      UserRepository(Get.find<IUserSource>()),
+      permanent: true,
+    );
+
+    Get.put<INotificationSource>(
+      RobleNotificationSource(client),
+      permanent: true,
+    );
+    Get.put<INotificationRepository>(
+      NotificationRepository(Get.find<INotificationSource>()),
+      permanent: true,
+    );
+    Get.put(
+      NotificationPublisher(Get.find<INotificationRepository>()),
+      permanent: true,
+    );
+    Get.put(
+      NotificationCenter(
+        Get.find<INotificationRepository>(),
+        Get.find<ISessionService>(),
+      ),
       permanent: true,
     );
 

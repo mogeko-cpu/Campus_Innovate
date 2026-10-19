@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../../../core/app_theme.dart';
 import '../../../../routes/app_routes.dart';
+import '../../../notifications/ui/widgets/notification_bell.dart';
 import '../../../shell/ui/widgets/app_bottom_nav.dart';
 import '../../../shell/ui/widgets/empty_state.dart';
 import '../../../shell/ui/widgets/gradient_header.dart';
@@ -24,6 +25,7 @@ class RankingPage extends GetView<RankingViewModel> {
       appBar: AppBar(
         title: const Text('Ranking'),
         automaticallyImplyLeading: false,
+        actions: const [NotificationBell()],
       ),
       bottomNavigationBar: const AppBottomNav(current: AppTab.ranking),
       body: SafeArea(

@@ -192,6 +192,102 @@ petición, y la actividad de un grupo nunca se puede contar para otro.
 
 ---
 
+### Notificaciones, invitaciones, chat y directorio
+
+Cuatro tablas más, en
+[`sql/2026_notificaciones_invitaciones_chat.sql`](sql/2026_notificaciones_invitaciones_chat.sql),
+que se corre **después** del archivo de grupos y valoraciones.
+
+```sql
+CREATE TABLE app_users (
+  _id UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+  user_id text NOT NULL UNIQUE,
+  name text NOT NULL,
+  email text NOT NULL,
+  updated_at timestamp NOT NULL
+);
+
+CREATE TABLE group_invitations (
+  _id UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+  group_id text NOT NULL,
+  group_name text NOT NULL,
+  inviter_id text NOT NULL,
+  inviter_name text NOT NULL,
+  invitee_id text NOT NULL,
+  invitee_name text NOT NULL,
+  created_at timestamp NOT NULL,
+  UNIQUE (group_id, invitee_id)
+);
+
+CREATE TABLE group_messages (
+  _id UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+  group_id text NOT NULL,
+  sender_id text NOT NULL,
+  sender_name text NOT NULL,
+  body text NOT NULL,
+  created_at timestamp NOT NULL
+);
+
+CREATE TABLE notifications (
+  _id UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+  recipient_id text NOT NULL,
+  type text NOT NULL,
+  title text NOT NULL,
+  body text NOT NULL,
+  target_type text NOT NULL,
+  target_id text NOT NULL,
+  is_read int4 NOT NULL,
+  created_at timestamp NOT NULL
+);
+```
+
+Decisiones que conviene entender antes de cambiar algo aquí:
+
+- **Una solicitud o invitación respondida se borra.** Antes quedaba en la tabla
+  con estado `accepted` o `rejected`, y eso dejaba la solicitud en pantalla y,
+  por el `UNIQUE (group_id, applicant_id)`, impedía volver a pedir entrada. Ahora
+  la fila existe solo mientras espera, y lo ocurrido le llega a la otra persona
+  como notificación. Las filas respondidas que ya existían se ignoran en las
+  pantallas, y se borran solas la próxima vez que esa persona vuelve a solicitar.
+- **`app_users` es un directorio, no una cuenta.** ROBLE guarda las cuentas en su
+  servicio de autenticación y no tiene ninguna llamada que las liste. Cada
+  persona se registra en esta tabla al abrir la app (desde Inicio, que es donde
+  terminan todas las formas de iniciar sesión). Quien no ha abierto la app desde
+  que existe la tabla no aparece en "Invitar al grupo".
+- **Una notificación por destinatario.** Un comentario visto por cinco personas
+  son cinco filas, así "marcar como leída" es un `UPDATE` sobre la fila propia.
+  Se insertan todas en una sola petición (`insert`, no `insert-one`), porque con
+  un equipo de diez personas serían diez peticiones contra un presupuesto de 100
+  por minuto. `is_read` es `int4` (0/1) y no un booleano.
+- **Quién recibe qué.** Comentario: el creador del proyecto, su equipo y los
+  integrantes del grupo que lo publicó, menos quien comentó. Idea publicada: el
+  resto del grupo. Solicitud recibida: quien decide (el creador del proyecto o el
+  líder del grupo). Solicitud aceptada o rechazada: quien la hizo. Invitación
+  recibida: la persona invitada. Invitación aceptada o rechazada: quien invitó.
+  Fallar al notificar nunca hace fallar la acción que lo causó.
+- **La tabla `notifications` no se limpia sola.** La pantalla muestra las 100 más
+  recientes de cada persona; las anteriores siguen en la tabla.
+- **El chat no es en vivo de verdad.** ROBLE no tiene canal de empuje, así que la
+  pantalla vuelve a leer la conversación cada 5 segundos mientras está abierta, y
+  un mensaje tarda hasta ese tiempo en aparecer en los demás teléfonos. `read` solo
+  filtra por igualdad, así que no hay forma de pedir "los mensajes después de
+  este": cada lectura trae la conversación completa, con un tope de 200 mensajes.
+  Es también por qué no se acorta el intervalo: cada lectura son tres peticiones
+  (el grupo, sus integrantes y los mensajes, porque se comprueba la membresía).
+  Eliminar un grupo con un chat largo es una petición por mensaje y puede topar con
+  el límite de tasa; el mensaje dice cuánto esperar, y repetir la acción continúa
+  donde quedó.
+
+### Refresco automático
+
+Por la misma razón (no hay canal de empuje), las pantallas que muestran lo que
+otras personas hacen vuelven a leer solas mientras están abiertas, con
+[`core/poller.dart`](../lib/core/poller.dart): el detalle de un grupo cada 15
+segundos, la pestaña Grupos cada 20, el chat cada 5 y las notificaciones cada 30.
+Cada lectura automática es silenciosa (sin indicador de carga y sin mostrar error
+si falla) y se pausa mientras otra pantalla está encima, para no gastar el límite
+de tasa dos veces en lo mismo.
+
 ## Lo que ROBLE no hace
 
 Esto es lo que explica la forma del código, y no es negociable desde la app:

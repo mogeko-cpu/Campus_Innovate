@@ -4,6 +4,8 @@ import 'package:get/get.dart';
 import '../../../../core/theme_controller.dart';
 import '../../../../routes/app_routes.dart';
 import '../../../auth/ui/viewmodels/authentication_controller.dart';
+import '../../../notifications/ui/viewmodels/notification_center.dart';
+import '../../../notifications/ui/widgets/notification_bell.dart';
 import '../../../shell/ui/widgets/app_bottom_nav.dart';
 import '../../../shell/ui/widgets/empty_state.dart';
 import '../viewmodels/profile_view_model.dart';
@@ -45,6 +47,8 @@ class ProfilePage extends GetView<ProfileViewModel> {
 
     if (confirmed != true) return;
 
+    Get.find<NotificationCenter>().reset();
+
     await Get.find<AuthenticationController>().logOut();
     await Get.offAllNamed(AppRoutes.login);
   }
@@ -56,6 +60,7 @@ class ProfilePage extends GetView<ProfileViewModel> {
         title: const Text('Perfil'),
         automaticallyImplyLeading: false,
         actions: [
+          const NotificationBell(),
           IconButton(
             tooltip: 'Cerrar sesión',
             onPressed: _confirmLogOut,
