@@ -85,5 +85,16 @@ jobs:
             libgtk-3-dev liblzma-dev libstdc++-12-dev libsecret-1-dev xvfb
       - run: flutter config --enable-linux-desktop
       - run: flutter pub get
+      # Un `flutter test` por archivo: con varios en una sola invocación, el
+      # escritorio de Linux abre bien la app la primera vez y en las siguientes
+      # falla con "The log reader stopped unexpectedly" antes de correr nada.
+      # Se corren todos aunque uno falle, y el paso falla si falló alguno.
       - name: Flujos completos en la app de escritorio
-        run: xvfb-run -a flutter test integration_test -d linux --reporter expanded
+        run: |
+          failed=0
+          for file in integration_test/*_test.dart; do
+            echo "::group::$file"
+            xvfb-run -a flutter test "$file" -d linux --reporter expanded || failed=1
+            echo "::endgroup::"
+          done
+          exit $failed

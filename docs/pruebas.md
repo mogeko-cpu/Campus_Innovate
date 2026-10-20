@@ -23,8 +23,11 @@ Las de integración necesitan un dispositivo. En CI usan la app de escritorio
 de Linux (`linux/`) dentro de un servidor X virtual:
 
 ```bash
-xvfb-run -a flutter test integration_test -d linux
+for f in integration_test/*_test.dart; do xvfb-run -a flutter test "$f" -d linux; done
 ```
+
+Un archivo por invocación: con varios juntos, el escritorio de Linux solo logra
+abrir la app la primera vez.
 
 Sin escritorio Linux también corren en el `flutter-tester`, una por archivo:
 
