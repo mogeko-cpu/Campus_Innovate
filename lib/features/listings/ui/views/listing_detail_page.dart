@@ -554,10 +554,13 @@ class _CommentsState extends State<_Comments> {
     final body = _controller.text.trim();
     if (body.isEmpty) return;
 
-    if (await widget.onSend(body)) {
-      _controller.clear();
-      FocusScope.of(context).unfocus();
-    }
+    final sent = await widget.onSend(body);
+
+    // The comment can come back after the person left the screen.
+    if (!sent || !mounted) return;
+
+    _controller.clear();
+    FocusScope.of(context).unfocus();
   }
 
   @override

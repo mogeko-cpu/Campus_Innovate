@@ -99,7 +99,7 @@ class NotificationPublisher {
     required String applicantId,
   }) {
     final isGroup = target == NotificationTarget.group;
-    final place = isGroup ? 'el grupo' : 'el proyecto';
+    final place = isGroup ? 'grupo' : 'proyecto';
 
     return _send(
       recipientIds: [applicantId],
@@ -111,8 +111,8 @@ class NotificationPublisher {
             : NotificationType.requestRejected,
         title: accepted ? 'Solicitud aceptada' : 'Solicitud rechazada',
         body: accepted
-            ? 'Ya haces parte de $place "$targetName".'
-            : 'Tu solicitud para unirte a $place "$targetName" fue '
+            ? 'Ya haces parte del $place "$targetName".'
+            : 'Tu solicitud para unirte al $place "$targetName" fue '
                 'rechazada.',
         target: target,
         targetId: targetId,

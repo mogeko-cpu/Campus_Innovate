@@ -37,37 +37,10 @@ class GroupDetailPage extends GetView<GroupDetailViewModel> {
 
   /// Asks for a short note and sends the request.
   Future<void> _askToJoin() async {
-    final messageController = TextEditingController();
+    // The dialog hands back what was written, or null when it was cancelled.
+    final message = await Get.dialog<String>(const _JoinRequestDialog());
 
-    final confirmed = await Get.dialog<bool>(
-      AlertDialog(
-        title: const Text('Solicitar ingreso'),
-        content: TextField(
-          controller: messageController,
-          maxLines: 3,
-          autofocus: true,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(
-            hintText: '¿Por qué quieres entrar y qué aportas?',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(result: false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Get.back(result: true),
-            child: const Text('Enviar'),
-          ),
-        ],
-      ),
-    );
-
-    final message = messageController.text;
-    messageController.dispose();
-
-    if (confirmed != true) return;
+    if (message == null) return;
 
     final sent = await controller.requestToJoin(message);
 
@@ -596,6 +569,54 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
+
+/// The note that goes with a request to join.
+///
+/// Its own widget so the text controller lives exactly as long as the field: the
+/// dialog is still animating out, with the field attached, when `Get.dialog`
+/// returns, and disposing the controller at that point broke the closing frames.
+class _JoinRequestDialog extends StatefulWidget {
+  const _JoinRequestDialog();
+
+  @override
+  State<_JoinRequestDialog> createState() => _JoinRequestDialogState();
+}
+
+class _JoinRequestDialogState extends State<_JoinRequestDialog> {
+  final _message = TextEditingController();
+
+  @override
+  void dispose() {
+    _message.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Solicitar ingreso'),
+      content: TextField(
+        controller: _message,
+        maxLines: 3,
+        autofocus: true,
+        textCapitalization: TextCapitalization.sentences,
+        decoration: const InputDecoration(
+          hintText: '¿Por qué quieres entrar y qué aportas?',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Get.back(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () => Get.back(result: _message.text),
+          child: const Text('Enviar'),
+        ),
+      ],
+    );
+  }
+}
 
 /// The two things somebody inside the group can do that an outsider cannot:
 /// talk to the others and bring somebody in.

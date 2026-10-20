@@ -61,7 +61,7 @@ class NotificationsPage extends GetView<NotificationCenter> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
             itemCount: items.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 4),
+            separatorBuilder: (_, _) => const SizedBox(height: 4),
             itemBuilder: (context, index) => _NotificationTile(
               notification: items[index],
               onTap: () => _open(items[index]),

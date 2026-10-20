@@ -1,0 +1,89 @@
+# Análisis estático y las tres capas de pruebas de Campus Innovate.
+#
+# Cada capa es un job aparte para que en la pestaña Actions se vea cuál pasó y
+# cuál no sin abrir los registros:
+#   - unitarias:   test/unit        (core, modelos, repositorios, view models)
+#   - widgets:     test/widget      (cada widget reutilizable y cada pantalla)
+#   - integración: integration_test (flujos completos sobre la app real)
+#
+# Ninguna toca ROBLE: corren sobre los dobles en memoria de test/support, así que
+# no necesitan secretos ni dejan filas en la base de datos.
+name: Pruebas
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: pruebas-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # La misma versión con la que se desarrolla; una distinta puede cambiar los
+  # lints o el render y hacer fallar pruebas que en local pasan.
+  FLUTTER_VERSION: 3.47.5
+
+jobs:
+  analisis:
+    name: Análisis estático
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+
+  unitarias:
+    name: Pruebas unitarias
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter test test/unit --reporter expanded
+
+  widgets:
+    name: Pruebas de widgets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter test test/widget --reporter expanded
+
+  integracion:
+    name: Pruebas de integración (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      # Lo que necesita compilar la app de escritorio, más libsecret para
+      # flutter_secure_storage y un servidor X virtual donde abrir la ventana.
+      - name: Dependencias de escritorio
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libstdc++-12-dev libsecret-1-dev xvfb
+      - run: flutter config --enable-linux-desktop
+      - run: flutter pub get
+      - name: Flujos completos en la app de escritorio
+        run: xvfb-run -a flutter test integration_test -d linux --reporter expanded
