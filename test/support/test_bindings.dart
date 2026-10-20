@@ -1,4 +1,6 @@
 import 'package:campus_innovate/core/i_session_service.dart';
+import 'package:campus_innovate/features/auth/domain/repositories/i_auth_repository.dart';
+import 'package:campus_innovate/features/auth/ui/viewmodels/authentication_controller.dart';
 import 'package:campus_innovate/core/poller.dart';
 import 'package:campus_innovate/core/theme_controller.dart';
 import 'package:campus_innovate/features/groups/data/datasources/i_group_chat_source.dart';
@@ -24,6 +26,7 @@ import 'package:campus_innovate/features/listings/domain/repositories/i_engageme
 import 'package:campus_innovate/features/listings/domain/repositories/i_listing_repository.dart';
 import 'package:get/get.dart';
 
+import 'fake_auth_repository.dart';
 import 'in_memory_engagement_source.dart';
 import 'in_memory_group_chat_source.dart';
 import 'in_memory_group_source.dart';
@@ -44,12 +47,16 @@ class TestBindings extends Bindings {
     IGroupChatSource? chatSource,
     IUserSource? userSource,
     INotificationSource? notificationSource,
+    ISessionService? session,
+    IAuthRepository? authRepository,
   })  : source = source ?? InMemoryListingSource(),
         groupSource = groupSource ?? InMemoryGroupSource(),
         engagementSource = engagementSource ?? InMemoryEngagementSource(),
         chatSource = chatSource ?? InMemoryGroupChatSource(),
         userSource = userSource ?? InMemoryUserSource(),
-        notificationSource = notificationSource ?? InMemoryNotificationSource();
+        notificationSource = notificationSource ?? InMemoryNotificationSource(),
+        session = session ?? const FakeSessionService(),
+        authRepository = authRepository ?? FakeAuthRepository();
 
   final IListingSource source;
   final IGroupSource groupSource;
@@ -58,6 +65,14 @@ class TestBindings extends Bindings {
   final IUserSource userSource;
   final INotificationSource notificationSource;
 
+  /// Who is using the app. A [FakeSessionService] unless the test needs to
+  /// switch people halfway, which takes a `TestSession`.
+  final ISessionService session;
+
+  /// What login, sign-up and logout talk to. The screens that sign out (home,
+  /// profile) need an [AuthenticationController] to exist.
+  final IAuthRepository authRepository;
+
   @override
   void dependencies() {
     // Screens refresh themselves on a timer in the app. A periodic timer left
@@ -65,7 +80,7 @@ class TestBindings extends Bindings {
     // test needs a screen to refresh by itself.
     Poller.enabled = false;
 
-    Get.put<ISessionService>(const FakeSessionService(), permanent: true);
+    Get.put<ISessionService>(session, permanent: true);
     Get.put(
       ThemeController(MemoryPreferences(), initialMode: ThemeMode.system),
       permanent: true,
@@ -119,6 +134,9 @@ class TestBindings extends Bindings {
       ),
       permanent: true,
     );
+
+    Get.put<IAuthRepository>(authRepository, permanent: true);
+    Get.put(AuthenticationController(authRepository), permanent: true);
   }
 }
 

@@ -58,7 +58,10 @@ class _SignUpPageState extends State<SignUpPage> {
 
     // `signup-direct` leaves the account usable immediately, so the first login
     // is the next screen and not an e-mail with a code.
-    await Get.offAllNamed(AppRoutes.login);
+    //
+    // Not awaited: the future of a pushed route completes when that route is
+    // popped, so awaiting it here kept the snackbar below from ever showing.
+    Get.offAllNamed(AppRoutes.login);
     Get.snackbar(
       'Cuenta creada',
       'Ya puedes iniciar sesión con tu correo.',

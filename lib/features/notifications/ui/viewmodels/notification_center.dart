@@ -55,6 +55,7 @@ class NotificationCenter extends GetxController {
     _ownerId = null;
   }
 
+  @override
   Future<void> refresh() async {
     final String userId;
 

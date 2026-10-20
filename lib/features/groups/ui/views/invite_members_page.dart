@@ -66,22 +66,35 @@ class InviteMembersPage extends GetView<InviteMembersViewModel> {
                 );
               }
 
+              // Read here, inside the `Obx`, and not in the item builder: the
+              // builder runs later, outside it, so a row would never notice its
+              // invitation went out and keep offering "Invitar".
+              final sendingTo = controller.sendingTo.value;
+              final rows = [
+                for (final user in people)
+                  (
+                    user: user,
+                    isInvited: controller.isInvited(user),
+                    hasRequested: controller.hasRequested(user),
+                  ),
+              ];
+
               return RefreshIndicator(
                 onRefresh: controller.load,
                 child: ListView.builder(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
-                  itemCount: people.length,
+                  itemCount: rows.length,
                   itemBuilder: (context, index) {
-                    final user = people[index];
+                    final row = rows[index];
 
                     return _PersonTile(
-                      user: user,
-                      isInvited: controller.isInvited(user),
-                      hasRequested: controller.hasRequested(user),
-                      isSending: controller.sendingTo.value == user.id,
-                      isLocked: controller.sendingTo.value != null,
-                      onInvite: () => _invite(user),
+                      user: row.user,
+                      isInvited: row.isInvited,
+                      hasRequested: row.hasRequested,
+                      isSending: sendingTo == row.user.id,
+                      isLocked: sendingTo != null,
+                      onInvite: () => _invite(row.user),
                     );
                   },
                 ),
