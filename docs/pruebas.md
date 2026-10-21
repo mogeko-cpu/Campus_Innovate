@@ -9,7 +9,7 @@ credenciales ni dejan filas en la base de datos.
 |---|---|---|
 | Unitarias | `test/unit/` | `core` (sesión, preferencias, poller, tema, errores), todos los modelos, los repositorios y cada view model |
 | Widgets | `test/widget/` | cada widget reutilizable y cada una de las 15 pantallas, con sus estados vacío, de error y de carga |
-| Integración | `integration_test/` | flujos completos sobre la app real: entrar/registrarse/salir, la vida de un proyecto, una solicitud entre dos personas, un grupo con invitación y chat, y la navegación con el cambio de tema |
+| Integración | `integration_test/` | flujos completos sobre la app real: entrar/registrarse/salir, la vida de un proyecto, una solicitud entre dos personas, un grupo con invitación y chat, la navegación con el cambio de tema, el tablero de tareas entre líder e integrante, y roles, estado y traspaso del liderazgo hasta terminar un proyecto |
 
 ## Cómo se corren
 

@@ -47,6 +47,7 @@ void main() {
         harness.groups,
         harness.publisher,
         harness.session,
+        harness.tasks,
       );
 
   Future<ListingDetailViewModel> open(String id) =>
@@ -306,7 +307,7 @@ void main() {
   });
 
   group('deleteListing', () {
-    test('solo quien lo publicó puede eliminarlo', () async {
+    test('solo el líder puede eliminarlo', () async {
       final viewModel = await open('listing_1');
 
       final deleted = await viewModel.deleteListing();
@@ -314,7 +315,7 @@ void main() {
       expect(deleted, isFalse);
       expect(
         viewModel.error.value,
-        'Solo quien publicó el proyecto puede eliminarlo.',
+        'Solo el líder del proyecto puede eliminarlo.',
       );
       expect(await harness.listings.getListingById('listing_1'), isNotNull);
     });

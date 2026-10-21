@@ -3,6 +3,8 @@ import 'package:campus_innovate/features/listings/domain/listing_exception.dart'
 import 'package:campus_innovate/features/listings/domain/models/join_request.dart';
 import 'package:campus_innovate/features/listings/domain/models/join_request_status.dart';
 import 'package:campus_innovate/features/listings/domain/models/listing.dart';
+import 'package:campus_innovate/features/listings/domain/models/listing_member.dart';
+import 'package:campus_innovate/features/listings/domain/models/listing_role.dart';
 
 /// [IListingSource] in memory, seeded with the same three demo projects that
 /// live in ROBLE.
@@ -76,10 +78,92 @@ class InMemoryListingSource implements IListingSource {
 
   @override
   Future<Listing> createListing(Listing listing) async {
-    final stored = listing.copyWith(id: _newId('listing'));
+    // The members as given — tests seed whole teams this way — and, like the
+    // real source, the creator recorded as leader unless the listing says
+    // otherwise.
+    final stored = listing.copyWith(
+      id: _newId('listing'),
+      members: listing.members.isNotEmpty
+          ? listing.members
+          : [
+              ListingMember(
+                userId: listing.creatorId,
+                userName: listing.creatorName,
+                role: ListingRole.leader,
+              ),
+            ],
+    );
     _listings.insert(0, stored);
 
     return stored;
+  }
+
+  @override
+  Future<Listing> updateListing(Listing listing) async {
+    final index = _indexOf(listing.id);
+
+    _listings[index] = _listings[index].copyWith(
+      title: listing.title,
+      description: listing.description,
+      category: listing.category,
+      maxMembers: listing.maxMembers,
+      requiredSkills: listing.requiredSkills,
+      status: listing.status,
+    );
+
+    return _listings[index];
+  }
+
+  @override
+  Future<void> removeMember({
+    required String listingId,
+    required String userId,
+  }) async {
+    final index = _listings.indexWhere((listing) => listing.id == listingId);
+    if (index == -1) return;
+
+    final listing = _listings[index];
+
+    _listings[index] = listing.copyWith(
+      memberIds: listing.memberIds.where((id) => id != userId).toList(),
+      members: listing.members.where((m) => m.userId != userId).toList(),
+    );
+  }
+
+  @override
+  Future<void> setMemberRole({
+    required String listingId,
+    required String userId,
+    required ListingRole role,
+  }) async {
+    final index = _indexOf(listingId);
+    final listing = _listings[index];
+
+    if (!listing.memberIds.contains(userId)) {
+      throw const ListingException('Esa persona ya no está en el equipo.');
+    }
+
+    // The row as `Listing.team` describes it today, with the new role: a member
+    // with no recorded name keeps the one the team already shows.
+    final current = listing.team.firstWhere((m) => m.userId == userId);
+
+    _listings[index] = listing.copyWith(
+      members: [
+        for (final member in listing.members)
+          if (member.userId != userId) member,
+        current.copyWith(role: role),
+      ],
+    );
+  }
+
+  int _indexOf(String listingId) {
+    final index = _listings.indexWhere((listing) => listing.id == listingId);
+
+    if (index == -1) {
+      throw ListingException('El proyecto $listingId ya no existe.');
+    }
+
+    return index;
   }
 
   @override
@@ -146,6 +230,7 @@ class InMemoryListingSource implements IListingSource {
   Future<void> addMember({
     required String listingId,
     required String userId,
+    String userName = '',
   }) async {
     final index = _listings.indexWhere((listing) => listing.id == listingId);
 
@@ -165,6 +250,14 @@ class InMemoryListingSource implements IListingSource {
 
     _listings[index] = listing.copyWith(
       memberIds: [...listing.memberIds, userId],
+      members: [
+        ...listing.members,
+        ListingMember(
+          userId: userId,
+          userName: userName,
+          role: ListingRole.member,
+        ),
+      ],
     );
   }
 }

@@ -41,6 +41,9 @@ abstract final class RobleConfig {
   static const String listingMembersTable = 'listing_members';
   static const String joinRequestsTable = 'join_requests';
 
+  /// A project's task board, one row per card.
+  static const String listingTasksTable = 'listing_tasks';
+
   /// Groups: the standing teams that publish projects.
   static const String groupsTable = 'groups';
   static const String groupMembersTable = 'group_members';

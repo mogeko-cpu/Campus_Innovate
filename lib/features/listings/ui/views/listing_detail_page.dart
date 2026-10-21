@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../../core/widgets/confirm_dialog.dart';
 import '../../../../core/widgets/name_avatar.dart';
 import '../../../../routes/app_routes.dart';
 import '../../../shell/ui/widgets/empty_state.dart';
@@ -9,35 +10,38 @@ import '../../domain/models/join_request.dart';
 import '../../domain/models/join_request_status.dart';
 import '../../domain/models/listing.dart';
 import '../../domain/models/listing_comment.dart';
+import '../../domain/models/listing_member.dart';
+import '../../domain/models/listing_role.dart';
+import '../../domain/models/listing_status.dart';
+import '../../domain/models/listing_task.dart';
 import '../viewmodels/listing_detail_view_model.dart';
 import '../viewmodels/requests_view_model.dart';
 import '../widgets/reaction_bar.dart';
+import '../widgets/status_chip.dart';
 
 class ListingDetailPage extends GetView<ListingDetailViewModel> {
   const ListingDetailPage({super.key});
 
+  void _toast(String title, String message) =>
+      Get.snackbar(title, message, snackPosition: SnackPosition.BOTTOM);
+
+  static String _nameOf(ListingMember member) =>
+      member.userName.isEmpty ? 'Integrante sin nombre' : member.userName;
+
+  Future<void> _openAndReload(String route) async {
+    await Get.toNamed(route);
+    await controller.load();
+  }
+
   Future<void> _confirmDelete() async {
-    final confirmed = await Get.dialog<bool>(
-      AlertDialog(
-        title: const Text('¿Eliminar el proyecto?'),
-        content: const Text(
-          'Se van a borrar su equipo, sus solicitudes, sus comentarios y sus '
-          'valoraciones. Esta acción no se puede deshacer.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(result: false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Get.back(result: true),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
+    final confirmed = await confirmAction(
+      title: '¿Eliminar el proyecto?',
+      message: 'Se van a borrar su equipo, sus solicitudes, sus tareas, sus '
+          'comentarios y sus valoraciones. Esta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar',
     );
 
-    if (confirmed != true) return;
+    if (!confirmed) return;
 
     final deleted = await controller.deleteListing();
 
@@ -57,6 +61,79 @@ class ListingDetailPage extends GetView<ListingDetailViewModel> {
     }
   }
 
+  Future<void> _remove(ListingMember member) async {
+    final name = _nameOf(member);
+
+    final confirmed = await confirmAction(
+      title: '¿Quitar a $name del equipo?',
+      message: 'Deja de ser parte del proyecto y sus tareas quedan sin '
+          'asignar.',
+      confirmLabel: 'Quitar',
+    );
+    if (!confirmed) return;
+
+    final done = await controller.removeMember(member);
+
+    _toast(
+      done ? 'Listo' : 'No se pudo quitar',
+      done
+          ? '$name ya no está en el equipo'
+          : controller.error.value ?? 'Intenta de nuevo',
+    );
+  }
+
+  Future<void> _setRole(ListingMember member, ListingRole role) async {
+    final name = _nameOf(member);
+    final done = await controller.setRole(member, role);
+
+    _toast(
+      done ? 'Rol actualizado' : 'No se pudo cambiar el rol',
+      done
+          ? '$name ahora es ${role.label.toLowerCase()}'
+          : controller.error.value ?? 'Intenta de nuevo',
+    );
+  }
+
+  Future<void> _transfer(ListingMember member) async {
+    final name = _nameOf(member);
+
+    final confirmed = await confirmAction(
+      title: '¿Transferir el liderazgo?',
+      message: '$name pasará a dirigir el proyecto y tú quedarás como '
+          'integrante.',
+      confirmLabel: 'Transferir',
+    );
+    if (!confirmed) return;
+
+    final done = await controller.transferLeadership(member);
+
+    _toast(
+      done ? 'Liderazgo transferido' : 'No se pudo transferir',
+      done
+          ? '$name ahora lidera el proyecto'
+          : controller.error.value ?? 'Intenta de nuevo',
+    );
+  }
+
+  Future<void> _leave() async {
+    final confirmed = await confirmAction(
+      title: '¿Salir del proyecto?',
+      message: 'Dejarás de ser parte del equipo y tus tareas quedarán sin '
+          'asignar.',
+      confirmLabel: 'Salir',
+    );
+    if (!confirmed) return;
+
+    final done = await controller.leave();
+
+    _toast(
+      done ? 'Saliste del proyecto' : 'No se pudo salir',
+      done
+          ? 'Ya no haces parte del equipo'
+          : controller.error.value ?? 'Intenta de nuevo',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -64,12 +141,29 @@ class ListingDetailPage extends GetView<ListingDetailViewModel> {
         title: const Text('Detalle del proyecto'),
         actions: [
           Obx(() {
-            if (!controller.isCreator) return const SizedBox.shrink();
+            final listing = controller.listing.value;
+            if (listing == null || !controller.isLeader) {
+              return const SizedBox.shrink();
+            }
 
-            return IconButton(
-              tooltip: 'Eliminar proyecto',
-              onPressed: controller.isWorking.value ? null : _confirmDelete,
-              icon: const Icon(Icons.delete_outline),
+            final busy = controller.isWorking.value;
+
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Editar proyecto',
+                  onPressed: busy
+                      ? null
+                      : () => _openAndReload(AppRoutes.editOf(listing.id)),
+                  icon: const Icon(Icons.edit_outlined),
+                ),
+                IconButton(
+                  tooltip: 'Eliminar proyecto',
+                  onPressed: busy ? null : _confirmDelete,
+                  icon: const Icon(Icons.delete_outline),
+                ),
+              ],
             );
           }),
         ],
@@ -116,19 +210,28 @@ class ListingDetailPage extends GetView<ListingDetailViewModel> {
             const SizedBox(height: 24),
             _Section(
               title: 'Equipo',
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.group_outlined,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    '${listing.memberIds.length} de ${listing.maxMembers} integrantes',
-                  ),
-                ],
+              child: _TeamSection(
+                listing: listing,
+                team: controller.team,
+                currentUserId: controller.currentUserId,
+                isLeader: controller.isLeader,
+                isBusy: controller.isWorking.value,
+                onRemove: _remove,
+                onSetRole: _setRole,
+                onTransfer: _transfer,
+                onLeave: _leave,
               ),
             ),
+            if (controller.myRole != null) ...[
+              const SizedBox(height: 24),
+              _Section(
+                title: 'Tareas',
+                child: _TasksSummary(
+                  progress: controller.progress.value,
+                  onOpen: () => _openAndReload(AppRoutes.tasksOf(listing.id)),
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             _Section(
               title: 'Valoración',
@@ -140,13 +243,14 @@ class ListingDetailPage extends GetView<ListingDetailViewModel> {
             ),
             const SizedBox(height: 32),
             _JoinAction(controller: controller, listing: listing),
-            if (controller.isCreator) ...[
+            if (controller.isLeader) ...[
               const SizedBox(height: 32),
               _Section(
                 title: 'Solicitudes recibidas',
                 child: _RequestsInbox(
                   listingId: listing.id,
                   listingTitle: listing.title,
+                  revision: controller.revision.value,
                 ),
               ),
             ],
@@ -181,19 +285,26 @@ class _Header extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-          decoration: BoxDecoration(
-            color: colors.primaryContainer,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(
-            listing.category,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: colors.onPrimaryContainer,
-              fontWeight: FontWeight.w700,
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: colors.primaryContainer,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                listing.category,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.onPrimaryContainer,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
-          ),
+            StatusChip(status: listing.status),
+          ],
         ),
         const SizedBox(height: 14),
         Text(
@@ -283,7 +394,7 @@ class _JoinAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (controller.isCreator) {
+    if (controller.isLeader) {
       return const InfoBanner(
         icon: Icons.verified_outlined,
         text: 'Este es tu proyecto.',
@@ -306,6 +417,20 @@ class _JoinAction extends StatelessWidget {
       );
     }
 
+    if (listing.status == ListingStatus.done) {
+      return const InfoBanner(
+        icon: Icons.check_circle_outline,
+        text: 'Este proyecto ya terminó y no recibe solicitudes.',
+      );
+    }
+
+    if (!listing.status.acceptsRequests) {
+      return const InfoBanner(
+        icon: Icons.pause_circle_outline,
+        text: 'Este proyecto está pausado y no recibe solicitudes por ahora.',
+      );
+    }
+
     if (listing.isFull) {
       return const InfoBanner(
         icon: Icons.group_off_outlined,
@@ -325,6 +450,186 @@ class _JoinAction extends StatelessWidget {
   }
 }
 
+/// Who is on the team and what each one is, with what the leader can do about
+/// it and the way out for everybody else.
+class _TeamSection extends StatelessWidget {
+  final Listing listing;
+  final List<ListingMember> team;
+  final String currentUserId;
+  final bool isLeader;
+  final bool isBusy;
+  final Future<void> Function(ListingMember) onRemove;
+  final Future<void> Function(ListingMember, ListingRole) onSetRole;
+  final Future<void> Function(ListingMember) onTransfer;
+  final Future<void> Function() onLeave;
+
+  /// Every value arrives as a parameter, read inside the page's `Obx`: a
+  /// `build` method runs later, outside it, and would not notice a change.
+  const _TeamSection({
+    required this.listing,
+    required this.team,
+    required this.currentUserId,
+    required this.isLeader,
+    required this.isBusy,
+    required this.onRemove,
+    required this.onSetRole,
+    required this.onTransfer,
+    required this.onLeave,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final isOnTeam = team.any((member) => member.userId == currentUserId);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.group_outlined, color: colors.primary),
+            const SizedBox(width: 10),
+            Text(
+              '${listing.memberIds.length} de ${listing.maxMembers} integrantes',
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        for (final member in team)
+          _MemberTile(
+            member: member,
+            isMe: member.userId == currentUserId,
+            canManage: isLeader &&
+                member.userId != currentUserId &&
+                member.role != ListingRole.leader,
+            isBusy: isBusy,
+            onRemove: () => onRemove(member),
+            onToggleMentor: () => onSetRole(
+              member,
+              member.role == ListingRole.mentor
+                  ? ListingRole.member
+                  : ListingRole.mentor,
+            ),
+            onTransfer: () => onTransfer(member),
+          ),
+        if (isOnTeam && !isLeader) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: isBusy ? null : onLeave,
+            icon: const Icon(Icons.logout),
+            label: const Text('Salir del proyecto'),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _MemberTile extends StatelessWidget {
+  final ListingMember member;
+  final bool isMe;
+  final bool canManage;
+  final bool isBusy;
+  final VoidCallback onRemove;
+  final VoidCallback onToggleMentor;
+  final VoidCallback onTransfer;
+
+  const _MemberTile({
+    required this.member,
+    required this.isMe,
+    required this.canManage,
+    required this.isBusy,
+    required this.onRemove,
+    required this.onToggleMentor,
+    required this.onTransfer,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final name = ListingDetailPage._nameOf(member);
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: NameAvatar(name: member.userName, radius: 17),
+      title: Text(name),
+      subtitle: Text(isMe ? '${member.role.label} · tú' : member.role.label),
+      trailing: canManage
+          ? PopupMenuButton<String>(
+              tooltip: 'Opciones de $name',
+              enabled: !isBusy,
+              onSelected: (choice) => switch (choice) {
+                'role' => onToggleMentor(),
+                'leader' => onTransfer(),
+                _ => onRemove(),
+              },
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'role',
+                  child: Text(
+                    member.role == ListingRole.mentor
+                        ? 'Hacer integrante'
+                        : 'Hacer mentor',
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'leader',
+                  child: Text('Transferir liderazgo'),
+                ),
+                const PopupMenuItem(
+                  value: 'remove',
+                  child: Text('Quitar del proyecto'),
+                ),
+              ],
+            )
+          : null,
+    );
+  }
+}
+
+/// How far along the board is, with the way into it. Shown to the team only.
+class _TasksSummary extends StatelessWidget {
+  final TaskProgress? progress;
+  final VoidCallback onOpen;
+
+  const _TasksSummary({required this.progress, required this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    final current = progress;
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (current == null)
+          Text(
+            'No se pudo leer el tablero.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.error,
+            ),
+          )
+        else ...[
+          Text(current.total == 0 ? 'Todavía no hay tareas' : current.label),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: current.fraction,
+              minHeight: 8,
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+        FilledButton.tonalIcon(
+          onPressed: onOpen,
+          icon: const Icon(Icons.view_kanban_outlined),
+          label: const Text('Ver tablero'),
+        ),
+      ],
+    );
+  }
+}
+
 
 /// The creator's inbox for this project.
 ///
@@ -335,7 +640,15 @@ class _RequestsInbox extends StatefulWidget {
   final String listingId;
   final String listingTitle;
 
-  const _RequestsInbox({required this.listingId, required this.listingTitle});
+  /// The detail's [ListingDetailViewModel.revision] when this was built: a new
+  /// value means the project was read again, and so must its requests be.
+  final int revision;
+
+  const _RequestsInbox({
+    required this.listingId,
+    required this.listingTitle,
+    required this.revision,
+  });
 
   @override
   State<_RequestsInbox> createState() => _RequestsInboxState();
@@ -350,6 +663,15 @@ class _RequestsInboxState extends State<_RequestsInbox> {
   void initState() {
     super.initState();
     _requests.load(widget.listingId, listingTitle: widget.listingTitle);
+  }
+
+  @override
+  void didUpdateWidget(_RequestsInbox oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (widget.revision != oldWidget.revision) {
+      _requests.load(widget.listingId, listingTitle: widget.listingTitle);
+    }
   }
 
   Future<void> _resolve({

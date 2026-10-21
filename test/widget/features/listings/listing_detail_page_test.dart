@@ -82,8 +82,10 @@ void main() {
       expect(find.text('Detalle del proyecto'), findsOneWidget);
       expect(find.text('Huerta Universitaria'), findsOneWidget);
       expect(find.text('Sostenibilidad'), findsOneWidget);
-      expect(find.text('Mariana Ospina'), findsOneWidget);
+      // Once under the title and once on the team list, where she leads.
+      expect(find.text('Mariana Ospina'), findsNWidgets(2));
       expect(find.text('Creador del proyecto'), findsOneWidget);
+      expect(find.text('Líder'), findsOneWidget);
       expect(find.widgetWithText(Chip, 'Biología'), findsOneWidget);
       expect(find.widgetWithText(Chip, 'Gestión de proyectos'), findsOneWidget);
       expect(find.text('2 de 6 integrantes'), findsOneWidget);

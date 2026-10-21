@@ -12,10 +12,12 @@ import '../features/home/home_dependencies.dart';
 import '../features/home/ui/views/home_page.dart';
 import '../features/listings/listings_dependencies.dart';
 import '../features/listings/ui/views/create_listing_page.dart';
+import '../features/listings/ui/views/edit_listing_page.dart';
 import '../features/listings/ui/views/join_request_page.dart';
 import '../features/listings/ui/views/listing_detail_page.dart';
 import '../features/listings/ui/views/listings_page.dart';
 import '../features/listings/ui/views/ranking_page.dart';
+import '../features/listings/ui/views/tasks_page.dart';
 import '../features/notifications/ui/views/notifications_page.dart';
 import '../features/profile/profile_dependencies.dart';
 import '../features/profile/ui/views/profile_page.dart';
@@ -51,6 +53,16 @@ class AppPages {
       name: AppRoutes.joinRequest,
       page: () => const JoinRequestPage(),
       binding: JoinRequestBinding(),
+    ),
+    GetPage(
+      name: AppRoutes.editListing,
+      page: () => const EditListingPage(),
+      binding: EditListingBinding(),
+    ),
+    GetPage(
+      name: AppRoutes.listingTasks,
+      page: () => const TasksPage(),
+      binding: TasksBinding(),
     ),
     GetPage(
       name: AppRoutes.ranking,

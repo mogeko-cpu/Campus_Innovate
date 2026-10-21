@@ -169,6 +169,78 @@ class NotificationPublisher {
     );
   }
 
+  /// Somebody gave a task to somebody else: tells the person who has it now.
+  Future<void> taskAssigned({
+    required String listingId,
+    required String listingTitle,
+    required String taskTitle,
+    required String assignerId,
+    required String assignerName,
+    required String assigneeId,
+  }) {
+    return _send(
+      recipientIds: [assigneeId],
+      except: assignerId,
+      build: (id) => AppNotification.draft(
+        recipientId: id,
+        type: NotificationType.taskAssigned,
+        title: 'Tienes una tarea nueva',
+        body: '$assignerName te asignó "${_snippet(taskTitle)}" en '
+            '"$listingTitle".',
+        target: NotificationTarget.listing,
+        targetId: listingId,
+      ),
+    );
+  }
+
+  /// The leader took somebody off a project's team: tells that person.
+  Future<void> memberRemoved({
+    required String listingId,
+    required String listingTitle,
+    required String deciderId,
+    required String userId,
+  }) {
+    return _send(
+      recipientIds: [userId],
+      except: deciderId,
+      build: (id) => AppNotification.draft(
+        recipientId: id,
+        type: NotificationType.memberRemoved,
+        title: 'Ya no estás en un proyecto',
+        body: 'El líder te retiró del equipo de "$listingTitle".',
+        target: NotificationTarget.listing,
+        targetId: listingId,
+      ),
+    );
+  }
+
+  /// Somebody's role on a project changed, leadership included: tells them.
+  Future<void> roleChanged({
+    required String listingId,
+    required String listingTitle,
+    required String deciderId,
+    required String userId,
+    required String roleLabel,
+    required bool isLeadership,
+  }) {
+    return _send(
+      recipientIds: [userId],
+      except: deciderId,
+      build: (id) => AppNotification.draft(
+        recipientId: id,
+        type: NotificationType.roleChanged,
+        title: isLeadership
+            ? 'Ahora lideras "$listingTitle"'
+            : 'Tu rol cambió en "$listingTitle"',
+        body: isLeadership
+            ? 'Te transfirieron el liderazgo del proyecto.'
+            : 'Ahora eres ${roleLabel.toLowerCase()} del equipo.',
+        target: NotificationTarget.listing,
+        targetId: listingId,
+      ),
+    );
+  }
+
   Future<void> _send({
     required Iterable<String> recipientIds,
     required String except,

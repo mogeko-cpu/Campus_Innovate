@@ -5,12 +5,15 @@ import '../groups/domain/repositories/i_group_repository.dart';
 import '../notifications/domain/notification_publisher.dart';
 import 'domain/repositories/i_engagement_repository.dart';
 import 'domain/repositories/i_listing_repository.dart';
+import 'domain/repositories/i_task_repository.dart';
 import 'ui/viewmodels/create_listing_view_model.dart';
+import 'ui/viewmodels/edit_listing_view_model.dart';
 import 'ui/viewmodels/join_request_view_model.dart';
 import 'ui/viewmodels/listing_detail_view_model.dart';
 import 'ui/viewmodels/listings_view_model.dart';
 import 'ui/viewmodels/ranking_view_model.dart';
 import 'ui/viewmodels/requests_view_model.dart';
+import 'ui/viewmodels/tasks_view_model.dart';
 
 class ListingsBinding extends Bindings {
   @override
@@ -49,6 +52,7 @@ class ListingDetailBinding extends Bindings {
         Get.find<IGroupRepository>(),
         Get.find<NotificationPublisher>(),
         Get.find<ISessionService>(),
+        Get.find<ITaskRepository>(),
       ),
     );
 
@@ -84,6 +88,33 @@ class RankingBinding extends Bindings {
       () => RankingViewModel(
         Get.find<IListingRepository>(),
         Get.find<IEngagementRepository>(),
+        Get.find<ISessionService>(),
+      ),
+    );
+  }
+}
+
+class EditListingBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.lazyPut(
+      () => EditListingViewModel(
+        Get.find<IListingRepository>(),
+        Get.find<NotificationPublisher>(),
+        Get.find<ISessionService>(),
+      ),
+    );
+  }
+}
+
+class TasksBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.lazyPut(
+      () => TasksViewModel(
+        Get.find<ITaskRepository>(),
+        Get.find<IListingRepository>(),
+        Get.find<NotificationPublisher>(),
         Get.find<ISessionService>(),
       ),
     );

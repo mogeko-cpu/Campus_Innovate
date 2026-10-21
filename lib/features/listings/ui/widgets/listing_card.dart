@@ -4,7 +4,9 @@ import '../../../../core/category_style.dart';
 import '../../../../core/widgets/name_avatar.dart';
 import '../../domain/models/listing.dart';
 import '../../domain/models/listing_stats.dart';
+import '../../domain/models/listing_status.dart';
 import 'listing_stats_row.dart';
+import 'status_chip.dart';
 
 class ListingCard extends StatelessWidget {
   final Listing listing;
@@ -71,8 +73,15 @@ class ListingCard extends StatelessWidget {
                       ],
                     ),
                   ),
+                  // "Idea" is where every project starts, so it goes unsaid;
+                  // any later state is worth a glance.
+                  if (listing.status != ListingStatus.idea) ...[
+                    const SizedBox(width: 6),
+                    StatusChip(status: listing.status),
+                  ],
                   const Spacer(),
-                  _SlotsBadge(listing: listing),
+                  if (listing.status.acceptsRequests)
+                    _SlotsBadge(listing: listing),
                 ],
               ),
               const SizedBox(height: 12),

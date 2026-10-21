@@ -1,3 +1,7 @@
+import 'listing_member.dart';
+import 'listing_role.dart';
+import 'listing_status.dart';
+
 class Listing {
   /// Identity assigned by the database.
   ///
@@ -26,6 +30,17 @@ class Listing {
   /// it without a second read — ROBLE offers no join.
   final String groupName;
 
+  /// Where the project stands. Only [ListingStatus.acceptsRequests] states take
+  /// new people.
+  final ListingStatus status;
+
+  /// Name and role of each person in [memberIds], as far as the rows say.
+  ///
+  /// [memberIds] stays the one answer to "who is in": this only adds what each
+  /// of them is. Somebody listed there without an entry here — every member
+  /// written before roles existed — is described by [team] from what is known.
+  final List<ListingMember> members;
+
   const Listing({
     required this.id,
     required this.title,
@@ -38,6 +53,8 @@ class Listing {
     required this.memberIds,
     this.groupId = '',
     this.groupName = '',
+    this.status = ListingStatus.idea,
+    this.members = const [],
   });
 
   /// A project filled in by the user but not yet stored, so without an [id].
@@ -67,6 +84,13 @@ class Listing {
       memberIds: [creatorId],
       groupId: groupId,
       groupName: groupName,
+      members: [
+        ListingMember(
+          userId: creatorId,
+          userName: creatorName,
+          role: ListingRole.leader,
+        ),
+      ],
     );
   }
 
@@ -81,6 +105,56 @@ class Listing {
   /// grupo" instead of hiding them: an old row is still a real project.
   bool get belongsToGroup => groupId.isNotEmpty;
 
+  /// Whether somebody new can ask to join: the project is looking for people
+  /// and there is room.
+  bool get isRecruiting => status.acceptsRequests && !isFull;
+
+  /// Everybody in [memberIds], in that order, with a name and a role.
+  ///
+  /// A member with no row details is the creator — who leads unless somebody
+  /// else was explicitly made leader — or a plain member. That is what keeps the
+  /// projects published before roles working without a migration of their rows.
+  List<ListingMember> get team {
+    final known = {for (final member in members) member.userId: member};
+    final someoneLeads = members.any(
+      (member) =>
+          member.role == ListingRole.leader &&
+          memberIds.contains(member.userId),
+    );
+
+    return [
+      for (final id in memberIds)
+        known[id] ??
+            ListingMember(
+              userId: id,
+              userName: id == creatorId ? creatorName : '',
+              role: id == creatorId && !someoneLeads
+                  ? ListingRole.leader
+                  : ListingRole.member,
+            ),
+    ];
+  }
+
+  /// Null for somebody outside the team.
+  ListingRole? roleOf(String userId) {
+    for (final member in team) {
+      if (member.userId == userId) return member.role;
+    }
+
+    return null;
+  }
+
+  bool isLeader(String userId) => roleOf(userId) == ListingRole.leader;
+
+  /// Who runs the project. The creator when the team says nothing else.
+  String get leaderId {
+    for (final member in team) {
+      if (member.role == ListingRole.leader) return member.userId;
+    }
+
+    return creatorId;
+  }
+
   Listing copyWith({
     String? id,
     String? title,
@@ -93,6 +167,8 @@ class Listing {
     List<String>? memberIds,
     String? groupId,
     String? groupName,
+    ListingStatus? status,
+    List<ListingMember>? members,
   }) {
     return Listing(
       id: id ?? this.id,
@@ -106,6 +182,8 @@ class Listing {
       memberIds: memberIds ?? this.memberIds,
       groupId: groupId ?? this.groupId,
       groupName: groupName ?? this.groupName,
+      status: status ?? this.status,
+      members: members ?? this.members,
     );
   }
 }

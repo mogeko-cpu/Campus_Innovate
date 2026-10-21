@@ -20,10 +20,13 @@ import 'package:campus_innovate/features/users/domain/repositories/i_user_reposi
 import 'package:flutter/material.dart';
 import 'package:campus_innovate/features/listings/data/datasources/i_engagement_source.dart';
 import 'package:campus_innovate/features/listings/data/datasources/i_listing_source.dart';
+import 'package:campus_innovate/features/listings/data/datasources/i_task_source.dart';
 import 'package:campus_innovate/features/listings/data/repositories/engagement_repository.dart';
 import 'package:campus_innovate/features/listings/data/repositories/listing_repository.dart';
+import 'package:campus_innovate/features/listings/data/repositories/task_repository.dart';
 import 'package:campus_innovate/features/listings/domain/repositories/i_engagement_repository.dart';
 import 'package:campus_innovate/features/listings/domain/repositories/i_listing_repository.dart';
+import 'package:campus_innovate/features/listings/domain/repositories/i_task_repository.dart';
 import 'package:get/get.dart';
 
 import 'fake_auth_repository.dart';
@@ -32,6 +35,7 @@ import 'in_memory_group_chat_source.dart';
 import 'in_memory_group_source.dart';
 import 'in_memory_listing_source.dart';
 import 'in_memory_notification_source.dart';
+import 'in_memory_task_source.dart';
 import 'in_memory_user_source.dart';
 import 'memory_preferences.dart';
 
@@ -49,6 +53,7 @@ class TestBindings extends Bindings {
     INotificationSource? notificationSource,
     ISessionService? session,
     IAuthRepository? authRepository,
+    ITaskSource? taskSource,
   })  : source = source ?? InMemoryListingSource(),
         groupSource = groupSource ?? InMemoryGroupSource(),
         engagementSource = engagementSource ?? InMemoryEngagementSource(),
@@ -56,7 +61,8 @@ class TestBindings extends Bindings {
         userSource = userSource ?? InMemoryUserSource(),
         notificationSource = notificationSource ?? InMemoryNotificationSource(),
         session = session ?? const FakeSessionService(),
-        authRepository = authRepository ?? FakeAuthRepository();
+        authRepository = authRepository ?? FakeAuthRepository(),
+        taskSource = taskSource ?? InMemoryTaskSource();
 
   final IListingSource source;
   final IGroupSource groupSource;
@@ -73,6 +79,9 @@ class TestBindings extends Bindings {
   /// profile) need an [AuthenticationController] to exist.
   final IAuthRepository authRepository;
 
+  /// The task boards of the projects.
+  final ITaskSource taskSource;
+
   @override
   void dependencies() {
     // Screens refresh themselves on a timer in the app. A periodic timer left
@@ -88,6 +97,12 @@ class TestBindings extends Bindings {
     Get.put<IListingSource>(source, permanent: true);
     Get.put<IListingRepository>(
       ListingRepository(Get.find<IListingSource>()),
+      permanent: true,
+    );
+
+    Get.put<ITaskSource>(taskSource, permanent: true);
+    Get.put<ITaskRepository>(
+      TaskRepository(Get.find<ITaskSource>()),
       permanent: true,
     );
 
