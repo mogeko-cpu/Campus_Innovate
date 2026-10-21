@@ -9,6 +9,7 @@ import '../test/support/in_memory_group_chat_source.dart';
 import '../test/support/in_memory_group_source.dart';
 import '../test/support/in_memory_listing_source.dart';
 import '../test/support/in_memory_notification_source.dart';
+import '../test/support/in_memory_task_source.dart';
 import '../test/support/in_memory_user_source.dart';
 import '../test/support/test_bindings.dart';
 import '../test/support/test_session.dart';
@@ -20,7 +21,14 @@ import '../test/support/test_session.dart';
 /// a student goes through; only ROBLE is replaced, because a test that reached
 /// it would need credentials and would leave rows behind for the next run.
 class CampusApp {
-  CampusApp._(this.tester, this.session, this.auth, this.notifications);
+  CampusApp._(
+    this.tester,
+    this.session,
+    this.auth,
+    this.notifications,
+    this.listings,
+    this.tasks,
+  );
 
   final WidgetTester tester;
   final TestSession session;
@@ -29,11 +37,16 @@ class CampusApp {
   /// Kept so a flow can assert on who was told what.
   final InMemoryNotificationSource notifications;
 
+  /// The stores a flow may seed before starting, or look into afterwards.
+  final InMemoryListingSource listings;
+  final InMemoryTaskSource tasks;
+
   /// Opens the app at login with nobody signed in, or at home already signed
   /// in as [signedInAs].
   static Future<CampusApp> start(
     WidgetTester tester, {
     TestUser? signedInAs,
+    InMemoryListingSource? listings,
   }) async {
     final session = TestSession();
     if (signedInAs == null) {
@@ -44,9 +57,11 @@ class CampusApp {
 
     final auth = FakeAuthRepository(session: session);
     final notifications = InMemoryNotificationSource();
+    final listingSource = listings ?? InMemoryListingSource();
+    final tasks = InMemoryTaskSource();
 
     final bindings = TestBindings(
-      source: InMemoryListingSource(),
+      source: listingSource,
       groupSource: InMemoryGroupSource(),
       engagementSource: InMemoryEngagementSource(),
       chatSource: InMemoryGroupChatSource(),
@@ -54,6 +69,7 @@ class CampusApp {
       notificationSource: notifications,
       session: session,
       authRepository: auth,
+      taskSource: tasks,
     );
 
     // A phone held upright, tall enough that the lists build every card: they
@@ -71,7 +87,14 @@ class CampusApp {
     );
     await tester.pumpAndSettle();
 
-    return CampusApp._(tester, session, auth, notifications);
+    return CampusApp._(
+      tester,
+      session,
+      auth,
+      notifications,
+      listingSource,
+      tasks,
+    );
   }
 
   Future<void> logIn(TestUser user) async {

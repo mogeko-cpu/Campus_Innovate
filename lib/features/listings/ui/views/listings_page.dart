@@ -7,6 +7,7 @@ import '../../../notifications/ui/widgets/notification_bell.dart';
 import '../../../shell/ui/widgets/app_bottom_nav.dart';
 import '../../../shell/ui/widgets/empty_state.dart';
 import '../../domain/models/listing_category.dart';
+import '../../domain/models/listing_status.dart';
 import '../viewmodels/listings_view_model.dart';
 import '../widgets/listing_card.dart';
 
@@ -60,6 +61,34 @@ class ListingsPage extends GetView<ListingsViewModel> {
                       label: category,
                       selected: controller.selectedCategory.value == category,
                       onSelected: () => controller.filterByCategory(category),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(
+            height: 46,
+            child: Obx(
+              () => ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      label: const Text('Cualquier estado'),
+                      selected: controller.selectedStatus.value == null,
+                      onSelected: (_) => controller.filterByStatus(null),
+                    ),
+                  ),
+                  for (final status in ListingStatus.values)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: FilterChip(
+                        label: Text(status.label),
+                        selected: controller.selectedStatus.value == status,
+                        onSelected: (_) => controller.filterByStatus(status),
+                      ),
                     ),
                 ],
               ),

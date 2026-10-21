@@ -8,6 +8,10 @@ abstract class AppRoutes {
   static const createListing = '/listings/create';
   static const listingDetail = '/listings/detail/:id';
   static const joinRequest = '/listings/join/:id';
+  static const editListing = '/listings/edit/:id';
+
+  /// A project's task board.
+  static const listingTasks = '/listings/tasks/:id';
 
   /// Projects ordered by how the campus valued them.
   static const ranking = '/ranking';
@@ -26,6 +30,10 @@ abstract class AppRoutes {
   static String detailOf(String id) => '/listings/detail/$id';
 
   static String joinOf(String id) => '/listings/join/$id';
+
+  static String editOf(String id) => '/listings/edit/$id';
+
+  static String tasksOf(String id) => '/listings/tasks/$id';
 
   static String groupOf(String id) => '/groups/detail/$id';
 

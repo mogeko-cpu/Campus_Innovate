@@ -4,6 +4,7 @@ import '../../../../core/error_message.dart';
 import '../../../../core/i_session_service.dart';
 import '../../domain/models/listing.dart';
 import '../../domain/models/listing_stats.dart';
+import '../../domain/models/listing_status.dart';
 import '../../domain/repositories/i_engagement_repository.dart';
 import '../../domain/repositories/i_listing_repository.dart';
 
@@ -21,19 +22,24 @@ class ListingsViewModel extends GetxController {
   final RxBool isLoading = false.obs;
   final RxnString error = RxnString();
   final RxnString selectedCategory = RxnString();
+
+  /// Null for every state.
+  final Rxn<ListingStatus> selectedStatus = Rxn<ListingStatus>();
   final RxString query = ''.obs;
 
   List<Listing> get listings {
     final category = selectedCategory.value;
+    final status = selectedStatus.value;
     final text = query.value.trim().toLowerCase();
 
     return _all.where((listing) {
       final matchesCategory = category == null || listing.category == category;
+      final matchesStatus = status == null || listing.status == status;
       final matchesText = text.isEmpty ||
           listing.title.toLowerCase().contains(text) ||
           listing.description.toLowerCase().contains(text);
 
-      return matchesCategory && matchesText;
+      return matchesCategory && matchesStatus && matchesText;
     }).toList();
   }
 
@@ -63,6 +69,8 @@ class ListingsViewModel extends GetxController {
   }
 
   void filterByCategory(String? category) => selectedCategory.value = category;
+
+  void filterByStatus(ListingStatus? status) => selectedStatus.value = status;
 
   void search(String text) => query.value = text;
 

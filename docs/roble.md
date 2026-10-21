@@ -278,6 +278,52 @@ Decisiones que conviene entender antes de cambiar algo aquí:
   el límite de tasa; el mensaje dice cuánto esperar, y repetir la acción continúa
   donde quedó.
 
+### Gestión de proyectos: estado, roles y tareas
+
+Agregado con [`sql/2026_gestion_de_proyectos.sql`](sql/2026_gestion_de_proyectos.sql),
+que ya se corrió en la consola el 2026-10-20. Solo agrega: tres columnas que pueden
+quedar nulas en las filas existentes y una tabla nueva.
+
+```sql
+ALTER TABLE listings ADD COLUMN status text;
+ALTER TABLE listing_members ADD COLUMN role text;
+ALTER TABLE listing_members ADD COLUMN user_name text;
+
+CREATE TABLE listing_tasks (
+  _id UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+  listing_id text NOT NULL,
+  title text NOT NULL,
+  assignee_id text NOT NULL,
+  assignee_name text NOT NULL,
+  due_date text,
+  status text NOT NULL,
+  created_by text NOT NULL,
+  created_at timestamp NOT NULL
+);
+```
+
+- **Las filas viejas no se migran.** Un proyecto sin `status` se lee como
+  `idea`; un integrante sin `role` es líder si es el creador e integrante si no
+  (`Listing.team`). Así los proyectos publicados antes siguen funcionando igual.
+- **Solo `idea` e `inProgress` reciben solicitudes.** El repositorio lo revisa al
+  pedir y al aceptar, no solo la pantalla. Marcar un proyecto `done` rechaza las
+  solicitudes pendientes y avisa a cada postulante.
+- **El líder es el que manda**, no el creador: edita, responde solicitudes,
+  gestiona el equipo y elimina. Transferir el liderazgo son dos escrituras, y se
+  promueve **primero** al nuevo líder: si la segunda falla quedan dos líderes, que
+  pueden seguir trabajando y terminar el cambio; al revés quedaría un proyecto sin
+  nadie a cargo. El líder no puede salir ni ser quitado sin transferir antes.
+- **Una tarea es una fila**, nunca un arreglo dentro del proyecto: mover una
+  tarjeta es actualizar su fila, y dos personas moviendo dos tarjetas a la vez no
+  se pisan. El avance ("3 de 7 tareas hechas") se cuenta de las filas cada vez,
+  igual que los me gusta.
+- **`due_date` es texto `AAAA-MM-DD`**, el día solo, a propósito: un `timestamp`
+  arrastra la zona horaria, y la Consola SQL lo pinta corrido (ver las trampas
+  más abajo). `assignee_id` vacío significa "sin asignar".
+- **Quitar a alguien libera sus tareas** (quedan sin asignar) y eliminar el
+  proyecto borra su tablero antes que el proyecto, por la misma razón que las
+  valoraciones: sin cascadas, primero los hijos.
+
 ### Refresco automático
 
 Por la misma razón (no hay canal de empuje), las pantallas que muestran lo que

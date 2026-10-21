@@ -24,12 +24,16 @@ import '../features/groups/domain/repositories/i_group_chat_repository.dart';
 import '../features/groups/domain/repositories/i_group_repository.dart';
 import '../features/listings/data/datasources/i_engagement_source.dart';
 import '../features/listings/data/datasources/i_listing_source.dart';
+import '../features/listings/data/datasources/i_task_source.dart';
 import '../features/listings/data/datasources/remote/roble_engagement_source.dart';
 import '../features/listings/data/datasources/remote/roble_listing_source.dart';
+import '../features/listings/data/datasources/remote/roble_task_source.dart';
 import '../features/listings/data/repositories/engagement_repository.dart';
 import '../features/listings/data/repositories/listing_repository.dart';
+import '../features/listings/data/repositories/task_repository.dart';
 import '../features/listings/domain/repositories/i_engagement_repository.dart';
 import '../features/listings/domain/repositories/i_listing_repository.dart';
+import '../features/listings/domain/repositories/i_task_repository.dart';
 import '../features/notifications/data/datasources/i_notification_source.dart';
 import '../features/notifications/data/datasources/remote/roble_notification_source.dart';
 import '../features/notifications/data/repositories/notification_repository.dart';
@@ -143,6 +147,12 @@ class AppBindings extends Bindings {
     Get.put<IListingSource>(RobleListingSource(client), permanent: true);
     Get.put<IListingRepository>(
       ListingRepository(Get.find<IListingSource>()),
+      permanent: true,
+    );
+
+    Get.put<ITaskSource>(RobleTaskSource(client), permanent: true);
+    Get.put<ITaskRepository>(
+      TaskRepository(Get.find<ITaskSource>()),
       permanent: true,
     );
 

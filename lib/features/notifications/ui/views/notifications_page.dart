@@ -165,6 +165,18 @@ class _NotificationTile extends StatelessWidget {
           icon: Icons.cancel_outlined,
           color: colors.error,
         ),
+      NotificationType.taskAssigned => (
+          icon: Icons.task_alt,
+          color: colors.primary,
+        ),
+      NotificationType.memberRemoved => (
+          icon: Icons.person_remove_outlined,
+          color: colors.error,
+        ),
+      NotificationType.roleChanged => (
+          icon: Icons.manage_accounts_outlined,
+          color: const Color(0xFF7A4FE0),
+        ),
       null => (icon: Icons.notifications_outlined, color: colors.primary),
     };
   }

@@ -3,6 +3,7 @@ import 'package:campus_innovate/features/groups/data/repositories/group_chat_rep
 import 'package:campus_innovate/features/groups/data/repositories/group_repository.dart';
 import 'package:campus_innovate/features/listings/data/repositories/engagement_repository.dart';
 import 'package:campus_innovate/features/listings/data/repositories/listing_repository.dart';
+import 'package:campus_innovate/features/listings/data/repositories/task_repository.dart';
 import 'package:campus_innovate/features/notifications/data/repositories/notification_repository.dart';
 import 'package:campus_innovate/features/notifications/domain/notification_publisher.dart';
 import 'package:campus_innovate/features/users/data/repositories/user_repository.dart';
@@ -14,6 +15,7 @@ import '../../support/in_memory_group_chat_source.dart';
 import '../../support/in_memory_group_source.dart';
 import '../../support/in_memory_listing_source.dart';
 import '../../support/in_memory_notification_source.dart';
+import '../../support/in_memory_task_source.dart';
 import '../../support/in_memory_user_source.dart';
 import '../../support/test_session.dart';
 
@@ -29,6 +31,7 @@ class ViewModelHarness {
     InMemoryGroupChatSource? chatSource,
     InMemoryUserSource? userSource,
     InMemoryNotificationSource? notificationSource,
+    InMemoryTaskSource? taskSource,
   })  : session = TestSession(user),
         listingSource = listingSource ?? InMemoryListingSource(),
         groupSource = groupSource ?? InMemoryGroupSource(),
@@ -36,7 +39,8 @@ class ViewModelHarness {
         chatSource = chatSource ?? InMemoryGroupChatSource(),
         userSource = userSource ?? InMemoryUserSource(),
         notificationSource =
-            notificationSource ?? InMemoryNotificationSource();
+            notificationSource ?? InMemoryNotificationSource(),
+        taskSource = taskSource ?? InMemoryTaskSource();
 
   final TestSession session;
   final InMemoryListingSource listingSource;
@@ -45,6 +49,7 @@ class ViewModelHarness {
   final InMemoryGroupChatSource chatSource;
   final InMemoryUserSource userSource;
   final InMemoryNotificationSource notificationSource;
+  final InMemoryTaskSource taskSource;
 
   late final listings = ListingRepository(listingSource);
   late final engagement = EngagementRepository(engagementSource);
@@ -53,6 +58,7 @@ class ViewModelHarness {
   late final users = UserRepository(userSource);
   late final notifications = NotificationRepository(notificationSource);
   late final publisher = NotificationPublisher(notifications);
+  late final tasks = TaskRepository(taskSource);
 }
 
 /// What every view model test file needs around each test: a binding for

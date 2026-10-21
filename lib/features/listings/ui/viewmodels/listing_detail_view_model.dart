@@ -7,10 +7,14 @@ import '../../../notifications/domain/notification_publisher.dart';
 import '../../domain/models/join_request.dart';
 import '../../domain/models/listing.dart';
 import '../../domain/models/listing_comment.dart';
+import '../../domain/models/listing_member.dart';
+import '../../domain/models/listing_role.dart';
 import '../../domain/models/listing_stats.dart';
+import '../../domain/models/listing_task.dart';
 import '../../domain/models/reaction_type.dart';
 import '../../domain/repositories/i_engagement_repository.dart';
 import '../../domain/repositories/i_listing_repository.dart';
+import '../../domain/repositories/i_task_repository.dart';
 
 class ListingDetailViewModel extends GetxController {
   final IListingRepository _repository;
@@ -18,6 +22,7 @@ class ListingDetailViewModel extends GetxController {
   final IGroupRepository _groups;
   final NotificationPublisher _notifier;
   final ISessionService _session;
+  final ITaskRepository _tasks;
 
   ListingDetailViewModel(
     this._repository,
@@ -25,13 +30,24 @@ class ListingDetailViewModel extends GetxController {
     this._groups,
     this._notifier,
     this._session,
+    this._tasks,
   );
 
   final Rxn<Listing> listing = Rxn<Listing>();
   final Rxn<JoinRequest> myRequest = Rxn<JoinRequest>();
   final Rx<ListingStats> stats = ListingStats.empty.obs;
   final RxList<ListingComment> comments = <ListingComment>[].obs;
+
+  /// How far along the board is. Null when it could not be read: the board is a
+  /// part of the project, and failing to count its cards must not take the rest
+  /// of the screen down with it.
+  final Rxn<TaskProgress> progress = Rxn<TaskProgress>();
   final RxBool isLoading = false.obs;
+
+  /// Goes up after every load, so what hangs off the project — the creator's
+  /// inbox — knows to read again. A load can finish within a frame, too fast
+  /// for the screen to swap in a spinner and rebuild those parts by itself.
+  final RxInt revision = 0.obs;
 
   /// True while a vote, a comment or a deletion is being written, so a double
   /// tap cannot send two opposite writes.
@@ -80,6 +96,8 @@ class ListingDetailViewModel extends GetxController {
         userId: _session.currentUserId,
       );
       comments.assignAll(await _engagement.getComments(listingId));
+      await _loadProgress();
+      revision.value++;
     } catch (failure) {
       error.value = errorMessage(
         failure,
@@ -90,16 +108,35 @@ class ListingDetailViewModel extends GetxController {
     }
   }
 
+  Future<void> _loadProgress() async {
+    try {
+      progress.value = await _tasks.progressOf(listingId);
+    } catch (_) {
+      progress.value = null;
+    }
+  }
+
+  String get currentUserId => _session.currentUserId;
+
   bool get isCreator => listing.value?.creatorId == _session.currentUserId;
 
   bool get isMember =>
       listing.value?.memberIds.contains(_session.currentUserId) ?? false;
 
+  /// What this person is to the team; null when they are not on it.
+  ListingRole? get myRole => listing.value?.roleOf(_session.currentUserId);
+
+  /// The leader runs the project: edits it, answers requests, manages the team
+  /// and deletes it. Whoever published it leads until they hand it over.
+  bool get isLeader => myRole == ListingRole.leader;
+
+  List<ListingMember> get team => listing.value?.team ?? const [];
+
   bool get canRequestToJoin =>
       listing.value != null &&
       !isCreator &&
       !isMember &&
-      !listing.value!.isFull &&
+      listing.value!.isRecruiting &&
       myRequest.value == null;
 
   /// Applies a tap on like or dislike.
@@ -233,12 +270,12 @@ class ListingDetailViewModel extends GetxController {
 
   /// Deletes the project and everything hanging off it.
   ///
-  /// The likes, views and comments go first: if the run stops halfway the
-  /// project is still there and the owner can try again, whereas deleting the
+  /// The likes, views, comments and tasks go first: if the run stops halfway the
+  /// project is still there and the leader can try again, whereas deleting the
   /// project first would leave rows nobody could reach or clean up.
   Future<bool> deleteListing() async {
-    if (!isCreator) {
-      error.value = 'Solo quien publicó el proyecto puede eliminarlo.';
+    if (!isLeader) {
+      error.value = 'Solo el líder del proyecto puede eliminarlo.';
       return false;
     }
 
@@ -249,6 +286,7 @@ class ListingDetailViewModel extends GetxController {
       error.value = null;
 
       await _engagement.purgeListing(listingId);
+      await _tasks.purgeListing(listingId);
       await _repository.deleteListing(listingId);
 
       return true;
@@ -257,6 +295,141 @@ class ListingDetailViewModel extends GetxController {
         failure,
         fallback: 'No se pudo eliminar el proyecto',
       );
+
+      return false;
+    } finally {
+      isWorking.value = false;
+    }
+  }
+
+  /// The leader takes somebody off the team. Their tasks are left without
+  /// anybody rather than with a person who can no longer see the board.
+  Future<bool> removeMember(ListingMember member) async {
+    final current = listing.value;
+    if (current == null) return false;
+
+    final done = await _teamWrite(
+      fallback: 'No se pudo quitar a la persona del equipo',
+      action: () => _repository.removeMember(
+        listingId: listingId,
+        userId: member.userId,
+        actorId: _session.currentUserId,
+      ),
+    );
+
+    if (done) {
+      await _freeTasksOf(member.userId);
+      await _notifier.memberRemoved(
+        listingId: current.id,
+        listingTitle: current.title,
+        deciderId: _session.currentUserId,
+        userId: member.userId,
+      );
+    }
+
+    return done;
+  }
+
+  /// This person leaves the team by their own decision.
+  Future<bool> leave() async {
+    final done = await _teamWrite(
+      fallback: 'No se pudo salir del proyecto',
+      action: () => _repository.leaveListing(
+        listingId: listingId,
+        userId: _session.currentUserId,
+      ),
+    );
+
+    if (done) await _freeTasksOf(_session.currentUserId);
+
+    return done;
+  }
+
+  /// Member or mentor; leadership goes through [transferLeadership].
+  Future<bool> setRole(ListingMember member, ListingRole role) async {
+    final current = listing.value;
+    if (current == null || member.role == role) return false;
+
+    final done = await _teamWrite(
+      fallback: 'No se pudo cambiar el rol',
+      action: () => _repository.setMemberRole(
+        listingId: listingId,
+        userId: member.userId,
+        role: role,
+        actorId: _session.currentUserId,
+      ),
+    );
+
+    if (done) {
+      await _notifier.roleChanged(
+        listingId: current.id,
+        listingTitle: current.title,
+        deciderId: _session.currentUserId,
+        userId: member.userId,
+        roleLabel: role.label,
+        isLeadership: false,
+      );
+    }
+
+    return done;
+  }
+
+  Future<bool> transferLeadership(ListingMember member) async {
+    final current = listing.value;
+    if (current == null) return false;
+
+    final done = await _teamWrite(
+      fallback: 'No se pudo transferir el liderazgo',
+      action: () => _repository.transferLeadership(
+        listingId: listingId,
+        newLeaderId: member.userId,
+        actorId: _session.currentUserId,
+      ),
+    );
+
+    if (done) {
+      await _notifier.roleChanged(
+        listingId: current.id,
+        listingTitle: current.title,
+        deciderId: _session.currentUserId,
+        userId: member.userId,
+        roleLabel: ListingRole.leader.label,
+        isLeadership: true,
+      );
+    }
+
+    return done;
+  }
+
+  /// Best effort: the person is already off the team, and a task still showing
+  /// their name is something the leader can fix on the board.
+  Future<void> _freeTasksOf(String userId) async {
+    try {
+      await _tasks.unassignAll(listingId: listingId, userId: userId);
+    } catch (_) {
+      // See above.
+    }
+  }
+
+  /// Runs a team change with the working flag and the error message, then reads
+  /// the project again so the list shows what the table holds.
+  Future<bool> _teamWrite({
+    required Future<void> Function() action,
+    required String fallback,
+  }) async {
+    if (isWorking.value) return false;
+
+    try {
+      isWorking.value = true;
+      error.value = null;
+
+      await action();
+
+      listing.value = await _repository.getListingById(listingId);
+
+      return true;
+    } catch (failure) {
+      error.value = errorMessage(failure, fallback: fallback);
 
       return false;
     } finally {

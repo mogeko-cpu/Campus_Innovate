@@ -7,6 +7,9 @@ import '../../../domain/listing_exception.dart';
 import '../../../domain/models/join_request.dart';
 import '../../../domain/models/join_request_status.dart';
 import '../../../domain/models/listing.dart';
+import '../../../domain/models/listing_member.dart';
+import '../../../domain/models/listing_role.dart';
+import '../../../domain/models/listing_status.dart';
 import '../i_listing_source.dart';
 
 /// Listings, members and join requests stored in ROBLE.
@@ -33,13 +36,12 @@ class RobleListingSource implements IListingSource {
     final rows = await _client.read(RobleConfig.listingsTable);
     final memberRows = await _client.read(RobleConfig.listingMembersTable);
 
-    final membersByListing = <String, List<String>>{};
+    final membersByListing = <String, List<Map<String, dynamic>>>{};
     for (final row in memberRows) {
       final listingId = row['listing_id']?.toString();
-      final userId = row['user_id']?.toString();
-      if (listingId == null || userId == null) continue;
+      if (listingId == null || row['user_id'] == null) continue;
 
-      membersByListing.putIfAbsent(listingId, () => []).add(userId);
+      membersByListing.putIfAbsent(listingId, () => []).add(row);
     }
 
     // Newest first. ROBLE cannot order a read, so the app sorts what it got.
@@ -63,9 +65,13 @@ class RobleListingSource implements IListingSource {
     );
     if (rows.isEmpty) return null;
 
-    final memberIds = await _memberIdsOf(id);
+    // Same rule as the full read: a member row without a person is skipped
+    // rather than shown as somebody called "null".
+    final memberRows = (await _memberRowsOf(id))
+        .where((row) => row['user_id'] != null)
+        .toList();
 
-    return _listingFrom(rows.first, {id: memberIds});
+    return _listingFrom(rows.first, {id: memberRows});
   }
 
   @override
@@ -80,6 +86,7 @@ class RobleListingSource implements IListingSource {
       'required_skills': listing.requiredSkills,
       'group_id': listing.groupId,
       'group_name': listing.groupName,
+      'status': listing.status.name,
       'created_at': _now(),
     });
 
@@ -96,13 +103,58 @@ class RobleListingSource implements IListingSource {
     // exist with nobody in it and no screen to fix that, so the insert is undone
     // and the user sees the original error and can publish again.
     try {
-      await _addMemberRow(listingId: id, userId: listing.creatorId);
+      await _addMemberRow(
+        listingId: id,
+        userId: listing.creatorId,
+        userName: listing.creatorName,
+        role: ListingRole.leader,
+      );
     } catch (_) {
       await _deleteQuietly(RobleConfig.listingsTable, id);
       rethrow;
     }
 
-    return listing.copyWith(id: id, memberIds: [listing.creatorId]);
+    return listing.copyWith(
+      id: id,
+      memberIds: [listing.creatorId],
+      members: [
+        ListingMember(
+          userId: listing.creatorId,
+          userName: listing.creatorName,
+          role: ListingRole.leader,
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<Listing> updateListing(Listing listing) async {
+    if (!RobleClient.isRowId(listing.id)) {
+      throw ListingException('El proyecto ${listing.id} ya no existe.');
+    }
+
+    await _client.update(
+      tableName: RobleConfig.listingsTable,
+      idValue: listing.id,
+      updates: {
+        'title': listing.title,
+        'description': listing.description,
+        'category': listing.category,
+        'max_members': listing.maxMembers,
+        'required_skills': listing.requiredSkills,
+        'status': listing.status.name,
+      },
+    );
+
+    // Read back rather than trusted: the next screen has to show what the table
+    // holds, and the update answers nothing about the row.
+    final stored = await getListingById(listing.id);
+
+    if (stored == null) {
+      throw ListingException('El proyecto ${listing.id} ya no existe.');
+    }
+
+    return stored;
   }
 
   @override
@@ -188,6 +240,7 @@ class RobleListingSource implements IListingSource {
   Future<void> addMember({
     required String listingId,
     required String userId,
+    String userName = '',
   }) async {
     final listing = await getListingById(listingId);
 
@@ -207,7 +260,58 @@ class RobleListingSource implements IListingSource {
     // Accepted on purpose — the alternative is a saved query with a locking
     // `INSERT … SELECT`, which is a lot of machinery for a group of students who
     // can remove a member by hand.
-    await _addMemberRow(listingId: listingId, userId: userId);
+    await _addMemberRow(
+      listingId: listingId,
+      userId: userId,
+      userName: userName,
+      role: ListingRole.member,
+    );
+  }
+
+  @override
+  Future<void> removeMember({
+    required String listingId,
+    required String userId,
+  }) async {
+    if (!RobleClient.isRowId(listingId)) return;
+
+    for (final row in await _memberRowsOf(listingId)) {
+      if (row['user_id']?.toString() != userId) continue;
+
+      final id = row['_id']?.toString();
+      if (id == null || id.isEmpty) continue;
+
+      await _client.delete(
+        tableName: RobleConfig.listingMembersTable,
+        idValue: id,
+      );
+    }
+  }
+
+  @override
+  Future<void> setMemberRole({
+    required String listingId,
+    required String userId,
+    required ListingRole role,
+  }) async {
+    if (!RobleClient.isRowId(listingId)) {
+      throw ListingException('El proyecto $listingId ya no existe.');
+    }
+
+    final row = (await _memberRowsOf(listingId))
+        .where((row) => row['user_id']?.toString() == userId)
+        .firstOrNull;
+    final id = row?['_id']?.toString();
+
+    if (id == null || id.isEmpty) {
+      throw const ListingException('Esa persona ya no está en el equipo.');
+    }
+
+    await _client.update(
+      tableName: RobleConfig.listingMembersTable,
+      idValue: id,
+      updates: {'role': role.name},
+    );
   }
 
   @override
@@ -259,11 +363,15 @@ class RobleListingSource implements IListingSource {
   Future<void> _addMemberRow({
     required String listingId,
     required String userId,
+    required String userName,
+    required ListingRole role,
   }) async {
     try {
       await _client.insertOne(RobleConfig.listingMembersTable, {
         'listing_id': listingId,
         'user_id': userId,
+        'user_name': userName,
+        'role': role.name,
         'joined_at': _now(),
       });
     } on RobleException catch (error) {
@@ -274,16 +382,11 @@ class RobleListingSource implements IListingSource {
     }
   }
 
-  Future<List<String>> _memberIdsOf(String listingId) async {
-    final rows = await _client.read(
+  Future<List<Map<String, dynamic>>> _memberRowsOf(String listingId) {
+    return _client.read(
       RobleConfig.listingMembersTable,
       filters: {'listing_id': listingId},
     );
-
-    return rows
-        .map((row) => row['user_id']?.toString())
-        .whereType<String>()
-        .toList();
   }
 
   /// Best-effort cleanup: if this fails there is nothing more to try, and the
@@ -321,24 +424,56 @@ class RobleListingSource implements IListingSource {
 
   Listing? _listingFrom(
     Map<String, dynamic> row,
-    Map<String, List<String>> membersByListing,
+    Map<String, List<Map<String, dynamic>>> membersByListing,
   ) {
     final id = row['_id']?.toString();
     if (id == null || id.isEmpty) return null;
+
+    final memberRows = membersByListing[id] ?? const [];
+    final creatorId = row['creator_id']?.toString() ?? '';
+    final creatorName = row['creator_name']?.toString() ?? '';
 
     return Listing(
       id: id,
       title: row['title']?.toString() ?? '',
       description: row['description']?.toString() ?? '',
       category: row['category']?.toString() ?? '',
-      creatorId: row['creator_id']?.toString() ?? '',
-      creatorName: row['creator_name']?.toString() ?? '',
+      creatorId: creatorId,
+      creatorName: creatorName,
       maxMembers: _intOf(row['max_members'], fallback: 1),
       requiredSkills: _stringsOf(row['required_skills']),
-      memberIds: membersByListing[id] ?? const [],
+      memberIds: [
+        for (final member in memberRows) member['user_id'].toString(),
+      ],
       groupId: row['group_id']?.toString() ?? '',
       groupName: row['group_name']?.toString() ?? '',
+      status: ListingStatus.fromName(row['status']?.toString()),
+      // Only rows that say what the person is get an entry. A row without a
+      // role was written before roles existed, and `Listing.team` already knows
+      // what it means: the creator leads and everybody else is a member.
+      members: [
+        for (final member in memberRows)
+          if (ListingRole.fromName(member['role']?.toString()) case final role?)
+            ListingMember(
+              userId: member['user_id'].toString(),
+              userName: _memberNameOf(member, creatorId, creatorName),
+              role: role,
+            ),
+      ],
     );
+  }
+
+  /// The name on the member row, or the creator's when the row is the
+  /// creator's and predates the column.
+  String _memberNameOf(
+    Map<String, dynamic> member,
+    String creatorId,
+    String creatorName,
+  ) {
+    final name = member['user_name']?.toString() ?? '';
+    if (name.isNotEmpty) return name;
+
+    return member['user_id']?.toString() == creatorId ? creatorName : '';
   }
 
   JoinRequest? _requestFrom(Map<String, dynamic> row) {
