@@ -5,6 +5,7 @@ import '../../../../core/day_format.dart';
 import '../../../../core/widgets/confirm_dialog.dart';
 import '../../../../core/widgets/name_avatar.dart';
 import '../../../shell/ui/widgets/empty_state.dart';
+import '../../../shell/ui/widgets/hero_decor.dart';
 import '../../../shell/ui/widgets/info_banner.dart';
 import '../../domain/models/listing_member.dart';
 import '../../domain/models/listing_task.dart';
@@ -65,6 +66,30 @@ class TasksPage extends GetView<TasksViewModel> {
 
     if (!done) {
       _toast('No se pudo mover', controller.lastActionError ?? 'Intenta de nuevo');
+    }
+  }
+
+  Future<void> _cancel(ListingTask task) async {
+    final confirmed = await confirmAction(
+      title: '¿Cancelar la tarea?',
+      message: '"${task.title}" queda en la columna Cancelado y deja de contar '
+          'para el avance. Puedes reabrirla cuando quieras.',
+      confirmLabel: 'Cancelar tarea',
+    );
+    if (!confirmed) return;
+
+    final done = await controller.cancel(task);
+
+    if (!done) {
+      _toast('No se pudo cancelar', controller.lastActionError ?? 'Intenta de nuevo');
+    }
+  }
+
+  Future<void> _reopen(ListingTask task) async {
+    final done = await controller.reopen(task);
+
+    if (!done) {
+      _toast('No se pudo reabrir', controller.lastActionError ?? 'Intenta de nuevo');
     }
   }
 
@@ -138,12 +163,20 @@ class TasksPage extends GetView<TasksViewModel> {
         final actions = _CardActions(
           onMove: _move,
           onEdit: _edit,
+          onCancel: _cancel,
+          onReopen: _reopen,
           onDelete: _delete,
         );
 
         return Column(
           children: [
-            _ProgressHeader(progress: controller.progress),
+            _ProgressHeader(
+              progress: controller.progress,
+              counts: {
+                for (final column in TaskColumn.values)
+                  column: columns[column]!.length,
+              },
+            ),
             if (!canWork)
               const Padding(
                 padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -178,6 +211,10 @@ class TasksPage extends GetView<TasksViewModel> {
                     child: Column(
                       children: [
                         TabBar(
+                          // Four columns with their counts do not fit a phone
+                          // side by side; they scroll instead of squeezing.
+                          isScrollable: true,
+                          tabAlignment: TabAlignment.start,
                           tabs: [
                             for (final column in TaskColumn.values)
                               Tab(
@@ -212,38 +249,127 @@ class TasksPage extends GetView<TasksViewModel> {
   }
 }
 
+/// How far along the board is, on the brand gradient: the percentage first,
+/// since it is what the team opens the board to see, then what it is made of.
 class _ProgressHeader extends StatelessWidget {
   final TaskProgress progress;
 
-  const _ProgressHeader({required this.progress});
+  /// Cards per column, for the small counters under the bar.
+  final Map<TaskColumn, int> counts;
+
+  const _ProgressHeader({required this.progress, required this.counts});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final onHero = colors.onPrimary;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            progress.label,
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [colors.primary, colors.secondary],
           ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: progress.fraction,
-              minHeight: 8,
+          boxShadow: heroShadow(colors),
+        ),
+        child: Stack(
+          children: [
+            HeroDecor(color: onHero),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${progress.percent}%',
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          color: onHero,
+                          fontWeight: FontWeight.w800,
+                          height: 1,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          progress.label,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: onHero.withValues(alpha: 0.9),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: LinearProgressIndicator(
+                      value: progress.fraction,
+                      minHeight: 8,
+                      color: onHero,
+                      backgroundColor: onHero.withValues(alpha: 0.22),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      for (final entry in counts.entries)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: onHero.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _iconOf(entry.key),
+                                size: 13,
+                                color: onHero.withValues(alpha: 0.9),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                '${entry.value}',
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: onHero,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
+
+  static IconData _iconOf(TaskColumn column) => switch (column) {
+        TaskColumn.todo => Icons.radio_button_unchecked,
+        TaskColumn.doing => Icons.timelapse,
+        TaskColumn.done => Icons.check_circle_outline,
+        TaskColumn.cancelled => Icons.block,
+      };
 }
 
 /// What one card shows, worked out inside the page's `Obx`.
@@ -270,11 +396,15 @@ class _CardData {
 class _CardActions {
   final Future<void> Function(ListingTask, TaskColumn) onMove;
   final Future<void> Function(ListingTask) onEdit;
+  final Future<void> Function(ListingTask) onCancel;
+  final Future<void> Function(ListingTask) onReopen;
   final Future<void> Function(ListingTask) onDelete;
 
   const _CardActions({
     required this.onMove,
     required this.onEdit,
+    required this.onCancel,
+    required this.onReopen,
     required this.onDelete,
   });
 }
@@ -338,133 +468,173 @@ class _TaskCard extends StatelessWidget {
     final previous = task.column.previous;
     final next = task.column.next;
 
+    // A strip in the column's color down the left edge, so a card says where
+    // it stands before a word is read — handy on the wide board, where every
+    // column is on screen at once.
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 6, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    task.title,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      decoration: task.isDone ? TextDecoration.lineThrough : null,
-                    ),
-                  ),
-                ),
-                if (data.canWork)
-                  PopupMenuButton<String>(
-                    tooltip: 'Opciones de la tarea',
-                    enabled: !data.isLocked,
-                    onSelected: (choice) => choice == 'edit'
-                        ? actions.onEdit(task)
-                        : actions.onDelete(task),
-                    itemBuilder: (_) => [
-                      const PopupMenuItem(value: 'edit', child: Text('Editar')),
-                      if (data.canDelete)
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Text('Eliminar'),
+            Container(width: 4, color: _accentOf(task.column, colors)),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 6, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            task.title,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              decoration: task.isDone || task.isCancelled
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                              color: task.isCancelled
+                                  ? colors.onSurfaceVariant
+                                  : null,
+                            ),
+                          ),
                         ),
+                        if (data.canWork)
+                          PopupMenuButton<String>(
+                            tooltip: 'Opciones de la tarea',
+                            enabled: !data.isLocked,
+                            onSelected: (choice) => switch (choice) {
+                              'edit' => actions.onEdit(task),
+                              'cancel' => actions.onCancel(task),
+                              'reopen' => actions.onReopen(task),
+                              _ => actions.onDelete(task),
+                            },
+                            itemBuilder: (_) => [
+                              const PopupMenuItem(value: 'edit', child: Text('Editar')),
+                              if (task.isCancelled)
+                                const PopupMenuItem(
+                                  value: 'reopen',
+                                  child: Text('Reabrir tarea'),
+                                )
+                              else
+                                const PopupMenuItem(
+                                  value: 'cancel',
+                                  child: Text('Cancelar tarea'),
+                                ),
+                              if (data.canDelete)
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Text('Eliminar'),
+                                ),
+                            ],
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        if (task.isAssigned) ...[
+                          NameAvatar(name: task.assigneeName, radius: 11),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              task.assigneeName.isEmpty
+                                  ? 'Integrante'
+                                  : task.assigneeName,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ),
+                        ] else
+                          Flexible(
+                            child: Text(
+                              'Sin asignar',
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colors.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        if (due != null) ...[
+                          const SizedBox(width: 10),
+                          Icon(
+                            Icons.event_outlined,
+                            size: 14,
+                            color: data.isOverdue ? colors.error : colors.outline,
+                          ),
+                          const SizedBox(width: 3),
+                          // Flexible as well: in a narrow column a name and a date with
+                          // its year do not both fit.
+                          Flexible(
+                            child: Text(
+                              data.isOverdue
+                                  ? 'Venció el ${shortDay(due)}'
+                                  : 'Vence el ${shortDay(due)}',
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: data.isOverdue ? colors.error : null,
+                                fontWeight: data.isOverdue ? FontWeight.w700 : null,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (data.canWork) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (data.isBusy)
+                            const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            )
+                          else ...[
+                            if (previous != null)
+                              IconButton(
+                                tooltip: 'Mover a ${previous.label}',
+                                onPressed: data.isLocked
+                                    ? null
+                                    : () => actions.onMove(task, previous),
+                                icon: const Icon(Icons.arrow_back),
+                              ),
+                            if (next != null)
+                              IconButton(
+                                tooltip: 'Mover a ${next.label}',
+                                onPressed: data.isLocked
+                                    ? null
+                                    : () => actions.onMove(task, next),
+                                icon: const Icon(Icons.arrow_forward),
+                              ),
+                          ],
+                        ],
+                      ),
                     ],
-                  ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                if (task.isAssigned) ...[
-                  NameAvatar(name: task.assigneeName, radius: 11),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      task.assigneeName.isEmpty
-                          ? 'Integrante'
-                          : task.assigneeName,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ),
-                ] else
-                  Flexible(
-                    child: Text(
-                      'Sin asignar',
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                if (due != null) ...[
-                  const SizedBox(width: 10),
-                  Icon(
-                    Icons.event_outlined,
-                    size: 14,
-                    color: data.isOverdue ? colors.error : colors.outline,
-                  ),
-                  const SizedBox(width: 3),
-                  // Flexible as well: in a narrow column a name and a date with
-                  // its year do not both fit.
-                  Flexible(
-                    child: Text(
-                      data.isOverdue
-                          ? 'Venció el ${shortDay(due)}'
-                          : 'Vence el ${shortDay(due)}',
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: data.isOverdue ? colors.error : null,
-                        fontWeight: data.isOverdue ? FontWeight.w700 : null,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            if (data.canWork) ...[
-              const SizedBox(height: 4),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  if (data.isBusy)
-                    const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    )
-                  else ...[
-                    if (previous != null)
-                      IconButton(
-                        tooltip: 'Mover a ${previous.label}',
-                        onPressed: data.isLocked
-                            ? null
-                            : () => actions.onMove(task, previous),
-                        icon: const Icon(Icons.arrow_back),
-                      ),
-                    if (next != null)
-                      IconButton(
-                        tooltip: 'Mover a ${next.label}',
-                        onPressed: data.isLocked
-                            ? null
-                            : () => actions.onMove(task, next),
-                        icon: const Icon(Icons.arrow_forward),
-                      ),
                   ],
-                ],
+                ),
               ),
-            ],
+            ),
           ],
         ),
       ),
     );
   }
+
+  static Color _accentOf(TaskColumn column, ColorScheme colors) =>
+      switch (column) {
+        TaskColumn.todo => const Color(0xFFE07A1E),
+        TaskColumn.doing => const Color(0xFF2F6FED),
+        TaskColumn.done => const Color(0xFF1E9E6B),
+        TaskColumn.cancelled => colors.outline,
+      };
 }
 
 class _TaskFormResult {

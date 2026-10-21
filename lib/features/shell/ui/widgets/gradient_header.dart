@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'hero_decor.dart';
+
 /// A crimson-to-navy banner for the screens that deserve one glance of
 /// identity before their list starts — Ranking and Groups open on a plain
 /// [AppBar] otherwise, the same visual weight as every other screen even
@@ -31,7 +33,7 @@ class GradientHeader extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         gradient: LinearGradient(
@@ -39,58 +41,71 @@ class GradientHeader extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [colors.primary, colors.secondary],
         ),
+        boxShadow: heroShadow(colors),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: colors.onPrimary.withValues(alpha: 0.18),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: colors.onPrimary),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        color: colors.onPrimary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.onPrimary.withValues(alpha: 0.85),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          HeroDecor(color: colors.onPrimary),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: _content(theme, colors),
           ),
-          if (stats.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                for (final (value, label) in stats) ...[
-                  _StatChip(value: value, label: label),
-                  const SizedBox(width: 10),
-                ],
-              ],
-            ),
-          ],
         ],
       ),
+    );
+  }
+
+  Widget _content(ThemeData theme, ColorScheme colors) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: colors.onPrimary.withValues(alpha: 0.18),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: colors.onPrimary),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: colors.onPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onPrimary.withValues(alpha: 0.85),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        if (stats.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              for (final (value, label) in stats) ...[
+                _StatChip(value: value, label: label),
+                const SizedBox(width: 10),
+              ],
+            ],
+          ),
+        ],
+      ],
     );
   }
 }

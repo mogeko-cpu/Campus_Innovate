@@ -50,6 +50,9 @@ void main() {
         harness.publisher,
         harness.session,
         harness.tasks,
+        harness.files,
+        harness.mentorships,
+        harness.users,
       );
 
   Future<ListingDetailViewModel> open(String id) =>

@@ -4,6 +4,8 @@ import '../../../../core/error_message.dart';
 import '../../../../core/i_session_service.dart';
 import '../../../groups/domain/repositories/i_group_repository.dart';
 import '../../../notifications/domain/notification_publisher.dart';
+import '../../../users/domain/models/app_user.dart';
+import '../../../users/domain/repositories/i_user_repository.dart';
 import '../../domain/models/join_request.dart';
 import '../../domain/models/listing.dart';
 import '../../domain/models/listing_comment.dart';
@@ -11,9 +13,12 @@ import '../../domain/models/listing_member.dart';
 import '../../domain/models/listing_role.dart';
 import '../../domain/models/listing_stats.dart';
 import '../../domain/models/listing_task.dart';
+import '../../domain/models/mentorship_request.dart';
 import '../../domain/models/reaction_type.dart';
 import '../../domain/repositories/i_engagement_repository.dart';
 import '../../domain/repositories/i_listing_repository.dart';
+import '../../domain/repositories/i_mentorship_repository.dart';
+import '../../domain/repositories/i_project_file_repository.dart';
 import '../../domain/repositories/i_task_repository.dart';
 
 class ListingDetailViewModel extends GetxController {
@@ -23,6 +28,9 @@ class ListingDetailViewModel extends GetxController {
   final NotificationPublisher _notifier;
   final ISessionService _session;
   final ITaskRepository _tasks;
+  final IProjectFileRepository _files;
+  final IMentorshipRepository _mentorships;
+  final IUserRepository _users;
 
   ListingDetailViewModel(
     this._repository,
@@ -31,6 +39,9 @@ class ListingDetailViewModel extends GetxController {
     this._notifier,
     this._session,
     this._tasks,
+    this._files,
+    this._mentorships,
+    this._users,
   );
 
   final Rxn<Listing> listing = Rxn<Listing>();
@@ -42,6 +53,15 @@ class ListingDetailViewModel extends GetxController {
   /// part of the project, and failing to count its cards must not take the rest
   /// of the screen down with it.
   final Rxn<TaskProgress> progress = Rxn<TaskProgress>();
+
+  /// How many files and links the team shares. Null when it could not be read,
+  /// for the same reason as [progress].
+  final RxnInt fileCount = RxnInt();
+
+  /// The mentorship this project is waiting on, if somebody asked for one. Read
+  /// for everybody: the team sees it waiting, and the person asked answers it
+  /// from here.
+  final Rxn<MentorshipRequest> mentorshipRequest = Rxn<MentorshipRequest>();
   final RxBool isLoading = false.obs;
 
   /// Goes up after every load, so what hangs off the project — the creator's
@@ -97,6 +117,7 @@ class ListingDetailViewModel extends GetxController {
       );
       comments.assignAll(await _engagement.getComments(listingId));
       await _loadProgress();
+      await _loadTeamSpace(found);
       revision.value++;
     } catch (failure) {
       error.value = errorMessage(
@@ -116,7 +137,183 @@ class ListingDetailViewModel extends GetxController {
     }
   }
 
+  /// The team's files and the mentorship, each one best effort: what the
+  /// project is must still show when a part of what hangs off it cannot be
+  /// read — the tables not created yet, a dropped request.
+  Future<void> _loadTeamSpace(Listing found) async {
+    if (found.roleOf(_session.currentUserId) != null) {
+      try {
+        fileCount.value = (await _files.getFiles(listingId)).length;
+      } catch (_) {
+        fileCount.value = null;
+      }
+    }
+
+    try {
+      mentorshipRequest.value = await _mentorships.getPendingFor(listingId);
+    } catch (_) {
+      mentorshipRequest.value = null;
+    }
+  }
+
   String get currentUserId => _session.currentUserId;
+
+  /// Somebody this project asked to mentor it, who has not answered yet.
+  bool get isInvitedMentor =>
+      myRole == null &&
+      mentorshipRequest.value?.mentorId == _session.currentUserId;
+
+  /// Whoever works the project may look for a mentor, while it has none and
+  /// nobody has been asked yet.
+  bool get canRequestMentorship =>
+      (myRole?.canWorkTasks ?? false) &&
+      !(listing.value?.hasMentor ?? true) &&
+      mentorshipRequest.value == null;
+
+  /// Whoever sent the request, or the leader.
+  bool get canCancelMentorship {
+    final request = mentorshipRequest.value;
+    if (request == null) return false;
+
+    return request.requesterId == _session.currentUserId || isLeader;
+  }
+
+  /// People who could mentor the project: everybody in the directory who is
+  /// not already on its team.
+  Future<List<AppUser>> mentorCandidates() async {
+    final current = listing.value;
+    if (current == null) return const [];
+
+    final everybody = await _users.getUsers();
+
+    return everybody
+        .where((user) => current.roleOf(user.id) == null)
+        .toList();
+  }
+
+  Future<bool> requestMentorship(AppUser mentor, String message) async {
+    final current = listing.value;
+    if (current == null) return false;
+
+    MentorshipRequest? stored;
+
+    final done = await _teamWrite(
+      fallback: 'No se pudo enviar la solicitud de mentoría',
+      action: () async {
+        stored = await _mentorships.request(
+          MentorshipRequest.draft(
+            listingId: current.id,
+            listingTitle: current.title,
+            requesterId: _session.currentUserId,
+            requesterName: _session.currentUserName,
+            mentorId: mentor.id,
+            mentorName: mentor.name,
+            message: message,
+          ),
+        );
+
+        mentorshipRequest.value = stored;
+      },
+    );
+
+    if (done) {
+      await _notifier.mentorshipRequested(
+        listingId: current.id,
+        listingTitle: current.title,
+        requesterId: _session.currentUserId,
+        requesterName: _session.currentUserName,
+        mentorId: stored!.mentorId,
+      );
+    }
+
+    return done;
+  }
+
+  Future<bool> cancelMentorshipRequest() async {
+    final request = mentorshipRequest.value;
+    if (request == null) return false;
+
+    return _teamWrite(
+      fallback: 'No se pudo cancelar la solicitud',
+      action: () async {
+        await _mentorships.cancel(
+          requestId: request.id,
+          actorId: _session.currentUserId,
+        );
+
+        mentorshipRequest.value = null;
+      },
+    );
+  }
+
+  /// The person asked says yes and joins the team as its mentor; the whole team
+  /// hears about it, since somebody new now sees their board.
+  Future<bool> acceptMentorship() async {
+    final request = mentorshipRequest.value;
+    if (request == null) return false;
+
+    final done = await _teamWrite(
+      fallback: 'No se pudo aceptar la mentoría',
+      action: () async {
+        await _mentorships.accept(
+          requestId: request.id,
+          actorId: _session.currentUserId,
+        );
+
+        mentorshipRequest.value = null;
+      },
+    );
+
+    if (!done) return false;
+
+    // On the team now: what only the team sees can be read.
+    final joined = listing.value;
+    if (joined != null) {
+      await _loadProgress();
+      await _loadTeamSpace(joined);
+    }
+
+    await _notifier.mentorshipResolved(
+      accepted: true,
+      listingId: request.listingId,
+      listingTitle: request.listingTitle,
+      mentorId: _session.currentUserId,
+      mentorName: _session.currentUserName,
+      recipientIds: joined?.memberIds ?? [request.requesterId],
+    );
+
+    return true;
+  }
+
+  Future<bool> rejectMentorship() async {
+    final request = mentorshipRequest.value;
+    if (request == null) return false;
+
+    final done = await _teamWrite(
+      fallback: 'No se pudo rechazar la mentoría',
+      action: () async {
+        await _mentorships.reject(
+          requestId: request.id,
+          actorId: _session.currentUserId,
+        );
+
+        mentorshipRequest.value = null;
+      },
+    );
+
+    if (done) {
+      await _notifier.mentorshipResolved(
+        accepted: false,
+        listingId: request.listingId,
+        listingTitle: request.listingTitle,
+        mentorId: _session.currentUserId,
+        mentorName: _session.currentUserName,
+        recipientIds: [request.requesterId],
+      );
+    }
+
+    return done;
+  }
 
   bool get isCreator => listing.value?.creatorId == _session.currentUserId;
 
@@ -287,6 +484,8 @@ class ListingDetailViewModel extends GetxController {
 
       await _engagement.purgeListing(listingId);
       await _tasks.purgeListing(listingId);
+      await _files.purgeListing(listingId, actorId: _session.currentUserId);
+      await _mentorships.purgeListing(listingId);
       await _repository.deleteListing(listingId);
 
       return true;

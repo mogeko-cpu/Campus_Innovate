@@ -97,7 +97,19 @@ class Listing {
   /// False while the project exists only on this device.
   bool get isPersisted => id.isNotEmpty;
 
-  int get availableSlots => maxMembers - memberIds.length;
+  /// The people who take a place on the team: everybody but the mentors, who
+  /// follow and advise without being one of the [maxMembers]. A professor asked
+  /// to mentor a full team still gets in, and nobody loses a seat for it.
+  int get memberCount =>
+      team.where((member) => member.role != ListingRole.mentor).length;
+
+  int get availableSlots => maxMembers - memberCount;
+
+  /// The mentors on the team; usually none or one.
+  List<ListingMember> get mentors =>
+      team.where((member) => member.role == ListingRole.mentor).toList();
+
+  bool get hasMentor => team.any((member) => member.role == ListingRole.mentor);
 
   bool get isFull => availableSlots <= 0;
 

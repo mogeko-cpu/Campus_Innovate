@@ -207,6 +207,52 @@ void main() {
       );
     });
 
+    test('las canceladas salen de la cuenta en vez de frenar el avance', () {
+      final progress = TaskProgress.of([
+        task(id: 'a', column: TaskColumn.done),
+        task(id: 'b', column: TaskColumn.todo),
+        task(id: 'c', column: TaskColumn.cancelled),
+        task(id: 'd', column: TaskColumn.cancelled),
+      ]);
+
+      expect(progress.total, 4);
+      expect(progress.cancelled, 2);
+      expect(progress.counted, 2);
+      expect(progress.fraction, 0.5);
+      expect(progress.percent, 50);
+      expect(progress.label, '1 de 2 tareas hechas');
+    });
+
+    test('el porcentaje se redondea al entero más cercano', () {
+      final progress = TaskProgress.of([
+        task(id: 'a', column: TaskColumn.done),
+        task(id: 'b', column: TaskColumn.doing),
+        task(id: 'c', column: TaskColumn.todo),
+      ]);
+
+      expect(progress.percent, 33);
+    });
+
+    test('si todo se canceló, no hay avance que mostrar ni división por cero',
+        () {
+      final progress = TaskProgress.of([
+        task(id: 'a', column: TaskColumn.cancelled),
+      ]);
+
+      expect(progress.counted, 0);
+      expect(progress.fraction, 0);
+      expect(progress.percent, 0);
+    });
+
+    test('una tarea cancelada nunca está vencida', () {
+      final late = task(column: TaskColumn.cancelled).copyWith(
+        dueDate: DateTime(2020, 1, 1),
+      );
+
+      expect(late.isCancelled, isTrue);
+      expect(late.isOverdue(DateTime(2026, 10, 21)), isFalse);
+    });
+
     test('todo terminado es la fracción completa', () {
       final progress = TaskProgress.of([
         task(id: 'a', column: TaskColumn.done),

@@ -52,6 +52,7 @@ void main() {
         harness.engagement,
         harness.users,
         harness.session,
+        harness.mentorships,
       );
 
   setUp(() => harness = ViewModelHarness());

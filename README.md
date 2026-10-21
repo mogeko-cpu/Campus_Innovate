@@ -74,6 +74,18 @@ flutter run --dart-define=ROBLE_SOCIAL_REDIRECT=nombre-del-destino
 El flujo completo, y los cuatro detalles de la API de ROBLE que no están
 documentados, en [`docs/roble.md`](docs/roble.md#iniciar-sesión-con-google).
 
+### Preparar la base de datos
+
+Las tablas se crean en la **Consola SQL** de ROBLE corriendo, en orden, los
+archivos de [`docs/sql/`](docs/sql). El último,
+`2026_archivos_y_mentoria.sql`, agrega los archivos del equipo y las solicitudes
+de mentoría.
+
+Para que los integrantes puedan **subir archivos** (y no solo compartir enlaces),
+el dueño del proyecto en ROBLE tiene que conectar un bucket compatible con S3 en
+**Configuración → Almacenamiento** y, para la versión web, permitir CORS desde la
+dirección de la app. Los detalles, en [`docs/roble.md`](docs/roble.md#archivos).
+
 ### Sembrar los proyectos de demostración
 
 Una base vacía muestra una pantalla vacía. Para insertar los tres proyectos de
@@ -187,6 +199,20 @@ unirse. `ListingRepository` concentra las reglas que el datasource no conoce: qu
 cuenta como proyecto destacado, y que aceptar una solicitud además incorpora al
 postulante como miembro.
 
+Quien está en el equipo de un proyecto tiene en su detalle el **Espacio del
+equipo**, que agrupa:
+
+- **Tareas**: el tablero (*Por hacer*, *En progreso*, *Hecho* y *Cancelado*) con
+  el **porcentaje de avance**: hechas sobre todas menos las canceladas.
+- **Archivos**: documentos e imágenes subidos al almacenamiento de ROBLE (hasta
+  10 MB) y enlaces a Drive, GitHub o Figma; cada quien ve lo que suben los demás.
+- **Mentoría**: el equipo se la pide a alguien del directorio de la app (un
+  profesor, por ejemplo), que recibe una notificación y acepta o rechaza. Al
+  aceptar entra al equipo con el rol de mentor, sin ocupar cupo.
+
+El equipo con sus roles (líder, integrante, mentor), el estado del proyecto y la
+bandeja de solicitudes del líder están en el mismo detalle.
+
 **`home`** — el menú principal. Saludo al usuario, las dos acciones primarias
 (publicar / explorar), proyectos destacados y los proyectos del usuario. Recarga
 su estado cada vez que el usuario vuelve de otra pantalla.
@@ -212,6 +238,9 @@ construye solo cuando su pantalla se abre.
 | `/listings/create` | Publicar proyecto |
 | `/listings/detail/:id` | Detalle del proyecto |
 | `/listings/join/:id` | Solicitud para unirse |
+| `/listings/edit/:id` | Editar proyecto (líder) |
+| `/listings/tasks/:id` | Tablero de tareas del equipo |
+| `/listings/files/:id` | Archivos del equipo |
 
 ### Identidad visual
 
@@ -253,11 +282,13 @@ cliente (`test/core/roble/`) y la fuente de datos
 - **El tope de integrantes es orientativo.** Sin escrituras condicionales, dos
   dispositivos pueden tomar el último puesto a la vez y un proyecto queda con uno
   de más. El detalle, en [`docs/roble.md`](docs/roble.md).
-- **Solicitudes sin bandeja.** Aceptar y rechazar postulaciones funciona a nivel
-  de repositorio, pero todavía no hay pantalla para el creador del proyecto.
+- **Subir archivos necesita un bucket.** ROBLE no guarda archivos por sí mismo;
+  sin un bucket S3 conectado en la consola, la subida avisa y solo funcionan los
+  enlaces.
+- **El avance cuenta tareas, no esfuerzo.** Todas pesan lo mismo, y una en
+  progreso no suma hasta que se termina.
 - **Sin recuperar contraseña.** El cliente de ROBLE lo soporta; ninguna pantalla
   lo llama todavía.
 - **Continuar con Google, solo en web.** El único destino de regreso registrado en
   la consola de ROBLE es la dirección de la app web; en las demás plataformas el
   botón avisa en vez de intentarlo.
-- Las pestañas **Proyectos** y **Perfil** de la barra inferior aún no navegan.

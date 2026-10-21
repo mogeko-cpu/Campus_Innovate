@@ -70,7 +70,7 @@ class EditListingViewModel extends GetxController {
 
   /// The team cannot be made smaller than the people already in it.
   int get minMembers {
-    final current = listing.value?.memberIds.length ?? 0;
+    final current = listing.value?.memberCount ?? 0;
 
     return current > ListingRepository.minTeamSize
         ? current

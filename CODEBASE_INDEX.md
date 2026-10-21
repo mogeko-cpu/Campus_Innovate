@@ -37,6 +37,9 @@ the repository and `ISessionService` through constructor injection.
 - [`lib/core/theme_controller.dart`](lib/core/theme_controller.dart) — `ThemeController`: light/dark/system, persisted through `ILocalPreferences` and read before `runApp` so the first frame opens in the right theme.
 - [`lib/core/i_session_service.dart`](lib/core/i_session_service.dart) — Identity of the current user, implemented by [`RobleSessionService`](lib/core/roble/roble_session_service.dart) over the signed-in ROBLE account.
 - [`lib/core/i_local_preferences.dart`](lib/core/i_local_preferences.dart) — Storage contract with shared and encrypted adapters. The session uses the encrypted one; the theme choice uses it too, since it is not sensitive.
+- [`lib/core/i_file_picker.dart`](lib/core/i_file_picker.dart) — `IFilePicker` and `PickedFile` (name, bytes, MIME type guessed from the extension when the platform gives none), implemented by [`platform_file_picker.dart`](lib/core/platform_file_picker.dart) over `file_picker`. An interface so the files screen can be tested without a native dialog.
+- [`lib/core/i_link_opener.dart`](lib/core/i_link_opener.dart) — `ILinkOpener`, implemented by [`url_link_opener.dart`](lib/core/url_link_opener.dart) over `url_launcher`: opens a shared link or a signed download link outside the app.
+- [`lib/core/time_ago.dart`](lib/core/time_ago.dart) — "hace 5 min" for the shared files.
 - [`lib/core/user_facing_exception.dart`](lib/core/user_facing_exception.dart) — Marks an exception whose `message` may be shown as is. [`error_message.dart`](lib/core/error_message.dart) passes those through and gives everything else a fallback.
 
 ## ROBLE
@@ -45,7 +48,7 @@ The backend. [`docs/roble.md`](docs/roble.md) holds the schema, the rate limits 
 the failure modes; this is where the code lives.
 
 - [`lib/core/roble/roble_config.dart`](lib/core/roble/roble_config.dart) — Host, contract id and table names, overridable with `--dart-define`.
-- [`lib/core/roble/roble_client.dart`](lib/core/roble/roble_client.dart) — REST transport: Bearer header, status-code translation, and one refresh-and-retry on a 401. No Flutter imports, so `tool/seed_roble.dart` reuses it.
+- [`lib/core/roble/roble_client.dart`](lib/core/roble/roble_client.dart) — REST transport: Bearer header, status-code translation, and one refresh-and-retry on a 401. Also the file storage: `uploadFile` (register → `PUT` to the signed URL without the session token → confirm), `fileDownloadUrl` and `deleteFile`. No Flutter imports, so `tool/seed_roble.dart` reuses it.
 - [`lib/core/roble/roble_session.dart`](lib/core/roble/roble_session.dart) — Tokens and user, in memory and mirrored to encrypted storage. Persisted because `login` allows only 10 attempts per 15 minutes per IP.
 - [`lib/core/roble/roble_user.dart`](lib/core/roble/roble_user.dart) — The account as `GET /me` describes it.
 - [`lib/core/roble/roble_exception.dart`](lib/core/roble/roble_exception.dart) — One sealed family, each with a Spanish message ready to display.
@@ -93,12 +96,25 @@ The core feature: publish a project, browse open projects, request to join one.
 - [`ui/widgets/listing_card.dart`](lib/features/listings/ui/widgets/listing_card.dart) — Shared project card, also used by home, the ranking and the groups screen. Counters and the position badge are optional.
 - [`ui/widgets/listing_stats_row.dart`](lib/features/listings/ui/widgets/listing_stats_row.dart) — The read-only counters under a card.
 - [`ui/widgets/reaction_bar.dart`](lib/features/listings/ui/widgets/reaction_bar.dart) — Like and dislike with their counts, plus views and comments. The button that becomes selected plays a short scale bounce, and its counter slides the new value in instead of snapping to it.
+- [`ui/viewmodels/files_view_model.dart`](lib/features/listings/ui/viewmodels/files_view_model.dart), [`ui/views/files_page.dart`](lib/features/listings/ui/views/files_page.dart) — The team's shared folder: upload, add a link, open, delete. Team only.
+- [`ui/widgets/project_file_tile.dart`](lib/features/listings/ui/widgets/project_file_tile.dart), [`link_dialog.dart`](lib/features/listings/ui/widgets/link_dialog.dart), [`mentor_request_dialog.dart`](lib/features/listings/ui/widgets/mentor_request_dialog.dart) — A shared file colored by its kind; the link form; choosing a mentor from the directory.
 - [`listings_dependencies.dart`](lib/features/listings/listings_dependencies.dart) — One binding per listings route, ranking included.
 
 The detail screen is where a project is lived in: it counts the visit, carries the
 vote buttons and the comments, shows the creator their pending requests, and lets
 the creator delete the project — reactions, views and comments first, then the
 project, so a half-finished delete leaves something that can be retried.
+
+For the team, the detail also carries the **Espacio del equipo**: the board's
+progress (done over everything but the cancelled, as a percentage), the shared
+files and the mentorship.
+
+- [`domain/models/project_file.dart`](lib/features/listings/domain/models/project_file.dart) — A shared upload (bytes in the bucket, `storageId`) or link (`url`), plus `readableSize`.
+- [`domain/models/mentorship_request.dart`](lib/features/listings/domain/models/mentorship_request.dart) — A team asking somebody outside to mentor it; the row exists only while the answer is pending.
+- [`data/repositories/project_file_repository.dart`](lib/features/listings/data/repositories/project_file_repository.dart) — The team (leader, members, mentor) shares; only the uploader deletes. Bytes first and the row second on upload, the reverse on delete. 10 MB cap; a link typed without `https://` is completed.
+- [`data/repositories/mentorship_repository.dart`](lib/features/listings/data/repositories/mentorship_repository.dart) — Leader or member asks somebody outside the team while it has no mentor; only that person answers, and accepting adds them with the mentor role (first) before deleting the request.
+- [`data/datasources/remote/roble_project_file_source.dart`](lib/features/listings/data/datasources/remote/roble_project_file_source.dart), [`roble_mentorship_source.dart`](lib/features/listings/data/datasources/remote/roble_mentorship_source.dart), [`roble_file_storage.dart`](lib/features/listings/data/datasources/remote/roble_file_storage.dart) — The two tables and the bucket. The `UNIQUE (listing_id)` of `mentorship_requests` becomes a readable refusal.
+- A task can also be **cancelled**: a board column that is not a step (`TaskColumn.flow` leaves it out), reached and left through the card's menu. A mentor takes no seat: `Listing.memberCount` counts everybody but the mentors.
 
 ## Groups feature
 
@@ -170,6 +186,8 @@ person registers themselves when they open Home.
 - [`lib/features/shell/ui/widgets/app_bottom_nav.dart`](lib/features/shell/ui/widgets/app_bottom_nav.dart) — `AppTab` and the navigation bar the five root screens share: Inicio, Explorar, Ranking, Grupos, Perfil. Switching tabs uses `offAllNamed`, since a tab is a root and not a step in a journey.
 - [`lib/features/shell/ui/widgets/empty_state.dart`](lib/features/shell/ui/widgets/empty_state.dart) — `EmptyState.screen` / `EmptyState.inline`: an icon in a soft tinted circle plus an optional action, replacing the `_Empty`/`_Message` classes that used to be duplicated in every screen.
 - [`lib/features/shell/ui/widgets/info_banner.dart`](lib/features/shell/ui/widgets/info_banner.dart) — `InfoBanner`: a left-aligned icon-and-text row for status messages ("this is your project", an inline error) that are not about an empty collection, so they keep their own shape instead of the centered `EmptyState` treatment.
+- [`lib/features/shell/ui/widgets/panel.dart`](lib/features/shell/ui/widgets/panel.dart) — `Panel`: the raised surface every section of a screen sits on — lighter than the tinted page, hairline edge, soft navy shadow — so screens read as layers. `Panel.decorationOf` gives the same look to a tappable tile.
+- [`lib/features/shell/ui/widgets/hero_decor.dart`](lib/features/shell/ui/widgets/hero_decor.dart) — `HeroDecor`, the translucent circles painted over the crimson-to-navy headers, and `heroShadow`, the colored glow under them.
 - [`lib/features/shell/ui/widgets/gradient_header.dart`](lib/features/shell/ui/widgets/gradient_header.dart) — `GradientHeader`: the crimson-to-navy banner used at the top of Ranking and Grupos, with small stat chips. Profile's own header uses the same gradient directly, since it also needs an avatar.
 
 ## Home feature
@@ -201,7 +219,7 @@ network, and would leave rows behind for the next run to trip over.
 - [`test/features/listings/roble_listing_source_test.dart`](test/features/listings/roble_listing_source_test.dart) — The source against a fake ROBLE: ordering, member grouping, rollback, duplicates, full projects.
 - [`test/core/roble/roble_client_test.dart`](test/core/roble/roble_client_test.dart) — Transport over `MockClient`: the single refresh-and-retry, both row shapes, 429, and the UUID guard.
 - [`test/core/roble/roble_password_policy_test.dart`](test/core/roble/roble_password_policy_test.dart) — Every rule, and every symbol ROBLE accepts.
-- [`test/support/`](test/support) — `fake_roble_api.dart` (ROBLE's database endpoints over a map of tables, composite `UNIQUE` included), `in_memory_listing_source.dart`, `in_memory_group_source.dart` (seeded with one group the test user owns, since publishing needs one), `in_memory_engagement_source.dart`, `in_memory_group_chat_source.dart`, `in_memory_user_source.dart`, `in_memory_notification_source.dart`, `test_bindings.dart` (also turns `Poller` off), `memory_preferences.dart`.
+- [`test/support/`](test/support) — `fake_roble_api.dart` (ROBLE's database endpoints over a map of tables, composite `UNIQUE` included), `in_memory_listing_source.dart`, `in_memory_group_source.dart` (seeded with one group the test user owns, since publishing needs one), `in_memory_engagement_source.dart`, `in_memory_group_chat_source.dart`, `in_memory_user_source.dart`, `in_memory_notification_source.dart`, `in_memory_project_file_source.dart`, `in_memory_mentorship_source.dart` (with the table's `UNIQUE`), `in_memory_file_storage.dart`, `fake_file_picker.dart`, `fake_link_opener.dart`, `test_bindings.dart` (also turns `Poller` off), `memory_preferences.dart`.
 
 ## Current implementation boundaries
 
@@ -216,3 +234,5 @@ network, and would leave rows behind for the next run to trip over.
 - A person can only be invited once they have opened the app since the `app_users` table existed.
 - The `notifications` table is never pruned; the screen shows the newest 100 per person.
 - Password reset and e-mail verification exist in the client; no screen calls them.
+- Uploading files needs a bucket connected in the ROBLE console (and CORS for the web build); links work without one. Files are capped at 10 MB.
+- Deleting a project removes the bytes only of the files its leader uploaded: ROBLE lets each person delete their own uploads only.

@@ -159,7 +159,7 @@ class ListingCard extends StatelessWidget {
                   Icon(Icons.group_outlined, size: 16, color: colors.outline),
                   const SizedBox(width: 4),
                   Text(
-                    '${listing.memberIds.length}/${listing.maxMembers}',
+                    '${listing.memberCount}/${listing.maxMembers}',
                     style: theme.textTheme.bodySmall,
                   ),
                 ],

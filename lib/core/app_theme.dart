@@ -51,7 +51,12 @@ abstract final class AppTheme {
     navigationRailUseIndicator: true,
   );
 
-  static ThemeData light = _withTypography(
+  /// The ground of every light screen: a whisper of the navy, so the white
+  /// cards and panels on it read as a layer above it rather than as the same
+  /// sheet of paper.
+  static const Color paper = Color(0xFFF3F1F5);
+
+  static ThemeData light = _withLayers(_withTypography(
     FlexThemeData.light(
       colors: _lightColors,
       surfaceMode: FlexSurfaceMode.levelSurfacesLowScaffold,
@@ -61,9 +66,9 @@ abstract final class AppTheme {
       subThemesData: _subThemes,
       visualDensity: FlexColorScheme.comfortablePlatformDensity,
     ),
-  );
+  ));
 
-  static ThemeData dark = _withTypography(
+  static ThemeData dark = _withLayers(_withTypography(
     FlexThemeData.dark(
       colors: _darkColors,
       surfaceMode: FlexSurfaceMode.levelSurfacesLowScaffold,
@@ -73,7 +78,90 @@ abstract final class AppTheme {
       subThemesData: _subThemes,
       visualDensity: FlexColorScheme.comfortablePlatformDensity,
     ),
-  );
+  ));
+
+  /// Gives the screens their depth: a tinted ground, and everything that holds
+  /// content — cards, dialogs, menus, the navigation bar — one layer above it,
+  /// lighter, with a hairline edge and a soft shadow tinted with the navy
+  /// instead of a grey one.
+  ///
+  /// The colors are the scheme's own; only where each surface sits changes. Out
+  /// of the box Material draws a card a shade *darker* than the page, which is
+  /// what left every screen looking flat.
+  static ThemeData _withLayers(ThemeData base) {
+    final colors = base.colorScheme;
+    final dark = base.brightness == Brightness.dark;
+
+    final raised =
+        dark ? colors.surfaceContainer : colors.surfaceContainerLowest;
+    final hairline =
+        colors.outlineVariant.withValues(alpha: dark ? 0.35 : 0.55);
+    final shadow =
+        dark ? Colors.black.withValues(alpha: 0.55) : navy.withValues(alpha: 0.16);
+
+    return base.copyWith(
+      scaffoldBackgroundColor: dark ? base.scaffoldBackgroundColor : paper,
+      cardTheme: base.cardTheme.copyWith(
+        color: raised,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: shadow,
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: hairline),
+        ),
+      ),
+      navigationBarTheme: base.navigationBarTheme.copyWith(
+        backgroundColor: raised,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: shadow,
+        elevation: 10,
+      ),
+      floatingActionButtonTheme: base.floatingActionButtonTheme.copyWith(
+        backgroundColor: colors.primary,
+        foregroundColor: colors.onPrimary,
+        elevation: 4,
+        focusElevation: 6,
+        hoverElevation: 6,
+        highlightElevation: 8,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      ),
+      dialogTheme: base.dialogTheme.copyWith(
+        backgroundColor: raised,
+        surfaceTintColor: Colors.transparent,
+        elevation: 8,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      ),
+      popupMenuTheme: base.popupMenuTheme.copyWith(
+        color: raised,
+        surfaceTintColor: Colors.transparent,
+        elevation: 6,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      // Fields sit on the panels like the cards sit on the page: lighter than
+      // what holds them, with a soft edge that only turns crimson on focus.
+      inputDecorationTheme: base.inputDecorationTheme.copyWith(
+        fillColor: raised,
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: colors.outlineVariant.withValues(alpha: dark ? 0.6 : 1),
+          ),
+        ),
+      ),
+      chipTheme: base.chipTheme.copyWith(side: BorderSide(color: hairline)),
+      dividerTheme: base.dividerTheme.copyWith(color: hairline),
+      tabBarTheme: base.tabBarTheme.copyWith(
+        labelStyle: base.textTheme.titleSmall?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
+        unselectedLabelStyle: base.textTheme.titleSmall?.copyWith(
+          fontWeight: FontWeight.w500,
+        ),
+        dividerColor: hairline,
+      ),
+    );
+  }
 
   /// Layers two Google Fonts onto FlexColorScheme's generated type scale:
   /// Sora for anything that reads as a heading, Inter for everything a person

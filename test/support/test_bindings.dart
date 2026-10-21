@@ -1,3 +1,5 @@
+import 'package:campus_innovate/core/i_file_picker.dart';
+import 'package:campus_innovate/core/i_link_opener.dart';
 import 'package:campus_innovate/core/i_session_service.dart';
 import 'package:campus_innovate/features/auth/domain/repositories/i_auth_repository.dart';
 import 'package:campus_innovate/features/auth/ui/viewmodels/authentication_controller.dart';
@@ -27,14 +29,26 @@ import 'package:campus_innovate/features/listings/data/repositories/task_reposit
 import 'package:campus_innovate/features/listings/domain/repositories/i_engagement_repository.dart';
 import 'package:campus_innovate/features/listings/domain/repositories/i_listing_repository.dart';
 import 'package:campus_innovate/features/listings/domain/repositories/i_task_repository.dart';
+import 'package:campus_innovate/features/listings/data/datasources/i_file_storage.dart';
+import 'package:campus_innovate/features/listings/data/datasources/i_mentorship_source.dart';
+import 'package:campus_innovate/features/listings/data/datasources/i_project_file_source.dart';
+import 'package:campus_innovate/features/listings/data/repositories/mentorship_repository.dart';
+import 'package:campus_innovate/features/listings/data/repositories/project_file_repository.dart';
+import 'package:campus_innovate/features/listings/domain/repositories/i_mentorship_repository.dart';
+import 'package:campus_innovate/features/listings/domain/repositories/i_project_file_repository.dart';
 import 'package:get/get.dart';
 
 import 'fake_auth_repository.dart';
+import 'fake_file_picker.dart';
+import 'fake_link_opener.dart';
 import 'in_memory_engagement_source.dart';
+import 'in_memory_file_storage.dart';
 import 'in_memory_group_chat_source.dart';
 import 'in_memory_group_source.dart';
 import 'in_memory_listing_source.dart';
+import 'in_memory_mentorship_source.dart';
 import 'in_memory_notification_source.dart';
+import 'in_memory_project_file_source.dart';
 import 'in_memory_task_source.dart';
 import 'in_memory_user_source.dart';
 import 'memory_preferences.dart';
@@ -54,6 +68,11 @@ class TestBindings extends Bindings {
     ISessionService? session,
     IAuthRepository? authRepository,
     ITaskSource? taskSource,
+    IProjectFileSource? fileSource,
+    IFileStorage? fileStorage,
+    IMentorshipSource? mentorshipSource,
+    IFilePicker? filePicker,
+    ILinkOpener? linkOpener,
   })  : source = source ?? InMemoryListingSource(),
         groupSource = groupSource ?? InMemoryGroupSource(),
         engagementSource = engagementSource ?? InMemoryEngagementSource(),
@@ -62,7 +81,12 @@ class TestBindings extends Bindings {
         notificationSource = notificationSource ?? InMemoryNotificationSource(),
         session = session ?? const FakeSessionService(),
         authRepository = authRepository ?? FakeAuthRepository(),
-        taskSource = taskSource ?? InMemoryTaskSource();
+        taskSource = taskSource ?? InMemoryTaskSource(),
+        fileSource = fileSource ?? InMemoryProjectFileSource(),
+        fileStorage = fileStorage ?? InMemoryFileStorage(),
+        mentorshipSource = mentorshipSource ?? InMemoryMentorshipSource(),
+        filePicker = filePicker ?? FakeFilePicker(),
+        linkOpener = linkOpener ?? FakeLinkOpener();
 
   final IListingSource source;
   final IGroupSource groupSource;
@@ -81,6 +105,19 @@ class TestBindings extends Bindings {
 
   /// The task boards of the projects.
   final ITaskSource taskSource;
+
+  /// What each team shares: the rows, and the bucket behind the uploads.
+  final IProjectFileSource fileSource;
+  final IFileStorage fileStorage;
+
+  /// Mentorships asked for and not answered yet.
+  final IMentorshipSource mentorshipSource;
+
+  /// The device's file chooser and browser, which a test cannot drive: a
+  /// [FakeFilePicker] hands back whatever the test put in it, and a
+  /// [FakeLinkOpener] records what the screen asked to open.
+  final IFilePicker filePicker;
+  final ILinkOpener linkOpener;
 
   @override
   void dependencies() {
@@ -105,6 +142,27 @@ class TestBindings extends Bindings {
       TaskRepository(Get.find<ITaskSource>()),
       permanent: true,
     );
+
+    Get.put<IProjectFileSource>(fileSource, permanent: true);
+    Get.put<IFileStorage>(fileStorage, permanent: true);
+    Get.put<IProjectFileRepository>(
+      ProjectFileRepository(
+        Get.find<IProjectFileSource>(),
+        Get.find<IFileStorage>(),
+        Get.find<IListingRepository>(),
+      ),
+      permanent: true,
+    );
+    Get.put<IMentorshipSource>(mentorshipSource, permanent: true);
+    Get.put<IMentorshipRepository>(
+      MentorshipRepository(
+        Get.find<IMentorshipSource>(),
+        Get.find<IListingRepository>(),
+      ),
+      permanent: true,
+    );
+    Get.put<IFilePicker>(filePicker, permanent: true);
+    Get.put<ILinkOpener>(linkOpener, permanent: true);
 
     Get.put<IEngagementSource>(engagementSource, permanent: true);
     Get.put<IEngagementRepository>(

@@ -180,7 +180,9 @@ void main() {
         (tester) async {
       await openDetail(tester);
 
-      expect(find.text('3 de 5 integrantes'), findsOneWidget);
+      // Leonel and Mariana: the mentor follows the project without taking one
+      // of its seats.
+      expect(find.text('2 de 5 integrantes'), findsOneWidget);
       expect(subtitleOf('Mariana Ospina', 'Integrante'), findsOneWidget);
       expect(subtitleOf('Carlos Ruiz', 'Mentor'), findsOneWidget);
       expect(find.text('Líder · tú'), findsOneWidget);
@@ -336,7 +338,7 @@ void main() {
 
       expect(find.text('Mariana Ospina ya no está en el equipo'), findsOneWidget);
       expect(tileOf('Mariana Ospina'), findsNothing);
-      expect(find.text('2 de 5 integrantes'), findsOneWidget);
+      expect(find.text('1 de 5 integrantes'), findsOneWidget);
       expect((await detail.stored()).memberIds, isNot(contains('user_2')));
       expect(detail.tasks.all.single.assigneeId, isEmpty);
       expect(

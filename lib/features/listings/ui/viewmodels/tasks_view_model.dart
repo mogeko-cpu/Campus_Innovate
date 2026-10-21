@@ -171,6 +171,13 @@ class TasksViewModel extends GetxController {
     );
   }
 
+  /// Takes [task] off the work without erasing it: it stays on the board, in
+  /// its own column, and stops counting for the progress.
+  Future<bool> cancel(ListingTask task) => move(task, TaskColumn.cancelled);
+
+  /// Brings a cancelled task back to the start of the board.
+  Future<bool> reopen(ListingTask task) => move(task, TaskColumn.todo);
+
   Future<bool> delete(ListingTask task) async {
     if (!canDelete(task)) return false;
 

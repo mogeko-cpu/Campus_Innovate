@@ -57,10 +57,13 @@ class ListingTask {
 
   bool get isDone => column == TaskColumn.done;
 
-  /// Past its day and not finished. A task due today is not late yet.
+  bool get isCancelled => column == TaskColumn.cancelled;
+
+  /// Past its day and not finished. A task due today is not late yet, and a
+  /// cancelled one never is: nobody is going to do it.
   bool isOverdue(DateTime now) {
     final due = dueDate;
-    if (due == null || isDone) return false;
+    if (due == null || isDone || isCancelled) return false;
 
     return due.isBefore(dateOnly(now));
   }
@@ -94,7 +97,11 @@ class ListingTask {
   }
 }
 
-/// How far along a project is: its finished tasks out of all of them.
+/// How far along a project is: its finished tasks out of the ones that count.
+///
+/// A cancelled task is work the team decided not to do, so it leaves the count
+/// instead of holding the project back forever; everything else is either done
+/// or still to do.
 ///
 /// Counted from the rows every time, never stored on the project, for the same
 /// reason likes are counted: a stored number would need read-modify-write and
@@ -103,26 +110,41 @@ class TaskProgress {
   final int done;
   final int total;
 
-  const TaskProgress({required this.done, required this.total});
+  /// Part of [total] that was cancelled.
+  final int cancelled;
+
+  const TaskProgress({
+    required this.done,
+    required this.total,
+    this.cancelled = 0,
+  });
 
   static const empty = TaskProgress(done: 0, total: 0);
 
   factory TaskProgress.of(Iterable<ListingTask> tasks) {
     var done = 0;
     var total = 0;
+    var cancelled = 0;
 
     for (final task in tasks) {
       total++;
       if (task.isDone) done++;
+      if (task.isCancelled) cancelled++;
     }
 
-    return TaskProgress(done: done, total: total);
+    return TaskProgress(done: done, total: total, cancelled: cancelled);
   }
 
-  /// Between 0 and 1; 0 for a board with no tasks.
-  double get fraction => total == 0 ? 0 : done / total;
+  /// The tasks the progress is taken over: every one but the cancelled.
+  int get counted => total - cancelled;
 
-  String get label => total == 1
+  /// Between 0 and 1; 0 for a board with nothing to count.
+  double get fraction => counted == 0 ? 0 : done / counted;
+
+  /// [fraction] as a whole percentage, the number the team looks for.
+  int get percent => (fraction * 100).round();
+
+  String get label => counted == 1
       ? '$done de 1 tarea hecha'
-      : '$done de $total tareas hechas';
+      : '$done de $counted tareas hechas';
 }

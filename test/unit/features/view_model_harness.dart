@@ -3,6 +3,8 @@ import 'package:campus_innovate/features/groups/data/repositories/group_chat_rep
 import 'package:campus_innovate/features/groups/data/repositories/group_repository.dart';
 import 'package:campus_innovate/features/listings/data/repositories/engagement_repository.dart';
 import 'package:campus_innovate/features/listings/data/repositories/listing_repository.dart';
+import 'package:campus_innovate/features/listings/data/repositories/mentorship_repository.dart';
+import 'package:campus_innovate/features/listings/data/repositories/project_file_repository.dart';
 import 'package:campus_innovate/features/listings/data/repositories/task_repository.dart';
 import 'package:campus_innovate/features/notifications/data/repositories/notification_repository.dart';
 import 'package:campus_innovate/features/notifications/domain/notification_publisher.dart';
@@ -10,11 +12,16 @@ import 'package:campus_innovate/features/users/data/repositories/user_repository
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 
+import '../../support/fake_file_picker.dart';
+import '../../support/fake_link_opener.dart';
 import '../../support/in_memory_engagement_source.dart';
+import '../../support/in_memory_file_storage.dart';
 import '../../support/in_memory_group_chat_source.dart';
 import '../../support/in_memory_group_source.dart';
 import '../../support/in_memory_listing_source.dart';
+import '../../support/in_memory_mentorship_source.dart';
 import '../../support/in_memory_notification_source.dart';
+import '../../support/in_memory_project_file_source.dart';
 import '../../support/in_memory_task_source.dart';
 import '../../support/in_memory_user_source.dart';
 import '../../support/test_session.dart';
@@ -32,6 +39,9 @@ class ViewModelHarness {
     InMemoryUserSource? userSource,
     InMemoryNotificationSource? notificationSource,
     InMemoryTaskSource? taskSource,
+    InMemoryProjectFileSource? fileSource,
+    InMemoryFileStorage? fileStorage,
+    InMemoryMentorshipSource? mentorshipSource,
   })  : session = TestSession(user),
         listingSource = listingSource ?? InMemoryListingSource(),
         groupSource = groupSource ?? InMemoryGroupSource(),
@@ -40,7 +50,10 @@ class ViewModelHarness {
         userSource = userSource ?? InMemoryUserSource(),
         notificationSource =
             notificationSource ?? InMemoryNotificationSource(),
-        taskSource = taskSource ?? InMemoryTaskSource();
+        taskSource = taskSource ?? InMemoryTaskSource(),
+        fileSource = fileSource ?? InMemoryProjectFileSource(),
+        fileStorage = fileStorage ?? InMemoryFileStorage(),
+        mentorshipSource = mentorshipSource ?? InMemoryMentorshipSource();
 
   final TestSession session;
   final InMemoryListingSource listingSource;
@@ -50,6 +63,11 @@ class ViewModelHarness {
   final InMemoryUserSource userSource;
   final InMemoryNotificationSource notificationSource;
   final InMemoryTaskSource taskSource;
+  final InMemoryProjectFileSource fileSource;
+  final InMemoryFileStorage fileStorage;
+  final InMemoryMentorshipSource mentorshipSource;
+  final picker = FakeFilePicker();
+  final links = FakeLinkOpener();
 
   late final listings = ListingRepository(listingSource);
   late final engagement = EngagementRepository(engagementSource);
@@ -59,6 +77,8 @@ class ViewModelHarness {
   late final notifications = NotificationRepository(notificationSource);
   late final publisher = NotificationPublisher(notifications);
   late final tasks = TaskRepository(taskSource);
+  late final files = ProjectFileRepository(fileSource, fileStorage, listings);
+  late final mentorships = MentorshipRepository(mentorshipSource, listings);
 }
 
 /// What every view model test file needs around each test: a binding for

@@ -13,6 +13,7 @@ import '../features/home/ui/views/home_page.dart';
 import '../features/listings/listings_dependencies.dart';
 import '../features/listings/ui/views/create_listing_page.dart';
 import '../features/listings/ui/views/edit_listing_page.dart';
+import '../features/listings/ui/views/files_page.dart';
 import '../features/listings/ui/views/join_request_page.dart';
 import '../features/listings/ui/views/listing_detail_page.dart';
 import '../features/listings/ui/views/listings_page.dart';
@@ -63,6 +64,11 @@ class AppPages {
       name: AppRoutes.listingTasks,
       page: () => const TasksPage(),
       binding: TasksBinding(),
+    ),
+    GetPage(
+      name: AppRoutes.listingFiles,
+      page: () => const FilesPage(),
+      binding: FilesBinding(),
     ),
     GetPage(
       name: AppRoutes.ranking,

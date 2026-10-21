@@ -4,8 +4,10 @@ import '../../../../core/error_message.dart';
 import '../../../../core/i_session_service.dart';
 import '../../../listings/domain/models/listing.dart';
 import '../../../listings/domain/models/listing_stats.dart';
+import '../../../listings/domain/models/mentorship_request.dart';
 import '../../../listings/domain/repositories/i_engagement_repository.dart';
 import '../../../listings/domain/repositories/i_listing_repository.dart';
+import '../../../listings/domain/repositories/i_mentorship_repository.dart';
 import '../../../users/domain/models/app_user.dart';
 import '../../../users/domain/repositories/i_user_repository.dart';
 
@@ -14,16 +16,22 @@ class HomeViewModel extends GetxController {
   final IEngagementRepository _engagement;
   final IUserRepository _users;
   final ISessionService _session;
+  final IMentorshipRepository _mentorships;
 
   HomeViewModel(
     this._repository,
     this._engagement,
     this._users,
     this._session,
+    this._mentorships,
   );
 
   final RxList<Listing> featuredListings = <Listing>[].obs;
   final RxList<Listing> myListings = <Listing>[].obs;
+
+  /// Teams that asked this person to mentor them and are waiting for an answer.
+  final RxList<MentorshipRequest> mentorshipRequests =
+      <MentorshipRequest>[].obs;
 
   /// Counters by project id, so a card can show them without a read of its own.
   final RxMap<String, ListingStats> stats = <String, ListingStats>{}.obs;
@@ -80,6 +88,7 @@ class HomeViewModel extends GetxController {
 
       featuredListings.assignAll(featured);
       myListings.assignAll(mine);
+      mentorshipRequests.assignAll(await _myMentorshipRequests());
       stats.assignAll(counters);
     } catch (failure) {
       error.value = errorMessage(
@@ -88,6 +97,17 @@ class HomeViewModel extends GetxController {
       );
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  /// Best effort: home is where everybody lands, so failing to read the
+  /// requests — the table not created yet, a dropped request — must not take
+  /// the featured projects down with it.
+  Future<List<MentorshipRequest>> _myMentorshipRequests() async {
+    try {
+      return await _mentorships.getMyInvitations(_session.currentUserId);
+    } catch (_) {
+      return const [];
     }
   }
 }
