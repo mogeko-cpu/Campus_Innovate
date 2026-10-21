@@ -168,9 +168,9 @@ class ListingRepository implements IListingRepository {
 
     // Shrinking below the people already in would leave somebody over the
     // limit with no rule for who goes; the leader removes someone first.
-    if (updated.maxMembers < current.memberIds.length) {
+    if (updated.maxMembers < current.memberCount) {
       throw ListingException(
-        'El equipo ya tiene ${current.memberIds.length} personas: el tamaño no '
+        'El equipo ya tiene ${current.memberCount} personas: el tamaño no '
         'puede ser menor.',
       );
     }
@@ -279,6 +279,19 @@ class ListingRepository implements IListingRepository {
       role: role,
     );
   }
+
+  @override
+  Future<void> addMentor({
+    required String listingId,
+    required String userId,
+    required String userName,
+  }) =>
+      _source.addMember(
+        listingId: listingId,
+        userId: userId,
+        userName: userName,
+        role: ListingRole.mentor,
+      );
 
   /// Two writes with no transaction, ordered for what a failure in between
   /// leaves behind: the new leader is promoted **first**. Stopping there leaves

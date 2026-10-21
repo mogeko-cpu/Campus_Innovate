@@ -222,8 +222,8 @@ class _EditListingPageState extends State<EditListingPage> {
                   child: Text('$maxMembers personas'),
                 ),
               Text(
-                'El equipo ya tiene ${listing.memberIds.length} '
-                '${listing.memberIds.length == 1 ? 'persona' : 'personas'}: '
+                'El equipo ya tiene ${listing.memberCount} '
+                '${listing.memberCount == 1 ? 'persona' : 'personas'}: '
                 'no puede ser más pequeño.',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,

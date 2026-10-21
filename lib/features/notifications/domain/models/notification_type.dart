@@ -10,7 +10,10 @@ enum NotificationType {
   invitationRejected,
   taskAssigned,
   memberRemoved,
-  roleChanged;
+  roleChanged,
+  mentorshipRequested,
+  mentorshipAccepted,
+  mentorshipRejected;
 
   /// Stored in the `type` column. An unknown value (a type a newer version of
   /// the app wrote) reads as null so the notification can still be listed.

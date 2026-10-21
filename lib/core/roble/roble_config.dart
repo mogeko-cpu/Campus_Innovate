@@ -44,6 +44,13 @@ abstract final class RobleConfig {
   /// A project's task board, one row per card.
   static const String listingTasksTable = 'listing_tasks';
 
+  /// What the team shares: a row per uploaded file (the bytes live in the
+  /// project's bucket) or per link.
+  static const String projectFilesTable = 'project_files';
+
+  /// A team asking somebody outside to mentor it, while the answer is pending.
+  static const String mentorshipRequestsTable = 'mentorship_requests';
+
   /// Groups: the standing teams that publish projects.
   static const String groupsTable = 'groups';
   static const String groupMembersTable = 'group_members';

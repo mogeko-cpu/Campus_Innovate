@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../core/error_message.dart';
+import '../core/i_file_picker.dart';
+import '../core/i_link_opener.dart';
 import '../core/i_local_preferences.dart';
 import '../core/i_session_service.dart';
 import '../core/local_preferences_secured.dart';
+import '../core/platform_file_picker.dart';
 import '../core/theme_controller.dart';
+import '../core/url_link_opener.dart';
 import '../core/roble/roble_client.dart';
 import '../core/roble/roble_session.dart';
 import '../core/roble/roble_session_service.dart';
@@ -34,6 +38,16 @@ import '../features/listings/data/repositories/task_repository.dart';
 import '../features/listings/domain/repositories/i_engagement_repository.dart';
 import '../features/listings/domain/repositories/i_listing_repository.dart';
 import '../features/listings/domain/repositories/i_task_repository.dart';
+import '../features/listings/data/datasources/i_file_storage.dart';
+import '../features/listings/data/datasources/i_mentorship_source.dart';
+import '../features/listings/data/datasources/i_project_file_source.dart';
+import '../features/listings/data/datasources/remote/roble_file_storage.dart';
+import '../features/listings/data/datasources/remote/roble_mentorship_source.dart';
+import '../features/listings/data/datasources/remote/roble_project_file_source.dart';
+import '../features/listings/data/repositories/mentorship_repository.dart';
+import '../features/listings/data/repositories/project_file_repository.dart';
+import '../features/listings/domain/repositories/i_mentorship_repository.dart';
+import '../features/listings/domain/repositories/i_project_file_repository.dart';
 import '../features/notifications/data/datasources/i_notification_source.dart';
 import '../features/notifications/data/datasources/remote/roble_notification_source.dart';
 import '../features/notifications/data/repositories/notification_repository.dart';
@@ -155,6 +169,29 @@ class AppBindings extends Bindings {
       TaskRepository(Get.find<ITaskSource>()),
       permanent: true,
     );
+
+    // The team's files and its mentor check who is on the team through the
+    // listings repository, so they come after it.
+    Get.put<IProjectFileSource>(RobleProjectFileSource(client), permanent: true);
+    Get.put<IFileStorage>(RobleFileStorage(client), permanent: true);
+    Get.put<IProjectFileRepository>(
+      ProjectFileRepository(
+        Get.find<IProjectFileSource>(),
+        Get.find<IFileStorage>(),
+        Get.find<IListingRepository>(),
+      ),
+      permanent: true,
+    );
+    Get.put<IMentorshipSource>(RobleMentorshipSource(client), permanent: true);
+    Get.put<IMentorshipRepository>(
+      MentorshipRepository(
+        Get.find<IMentorshipSource>(),
+        Get.find<IListingRepository>(),
+      ),
+      permanent: true,
+    );
+    Get.put<IFilePicker>(const PlatformFilePicker(), permanent: true);
+    Get.put<ILinkOpener>(const UrlLinkOpener(), permanent: true);
 
     Get.put<IEngagementSource>(RobleEngagementSource(client), permanent: true);
     Get.put<IEngagementRepository>(

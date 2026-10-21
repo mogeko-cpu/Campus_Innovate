@@ -177,6 +177,18 @@ class _NotificationTile extends StatelessWidget {
           icon: Icons.manage_accounts_outlined,
           color: const Color(0xFF7A4FE0),
         ),
+      NotificationType.mentorshipRequested => (
+          icon: Icons.school_outlined,
+          color: colors.tertiary,
+        ),
+      NotificationType.mentorshipAccepted => (
+          icon: Icons.school_outlined,
+          color: green,
+        ),
+      NotificationType.mentorshipRejected => (
+          icon: Icons.cancel_outlined,
+          color: colors.error,
+        ),
       null => (icon: Icons.notifications_outlined, color: colors.primary),
     };
   }

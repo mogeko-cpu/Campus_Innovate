@@ -25,6 +25,7 @@ class FakeRobleApi {
   final Map<String, List<String>> uniques = {
     'listing_members': ['listing_id', 'user_id'],
     'join_requests': ['listing_id', 'applicant_id'],
+    'mentorship_requests': ['listing_id'],
   };
 
   /// Every path that was hit, in order, for assertions about what the source did

@@ -8,6 +8,8 @@ import '../../../notifications/ui/viewmodels/notification_center.dart';
 import '../../../notifications/ui/widgets/notification_bell.dart';
 import '../../../shell/ui/widgets/app_bottom_nav.dart';
 import '../../../shell/ui/widgets/empty_state.dart';
+import '../../../shell/ui/widgets/hero_decor.dart';
+import '../../../shell/ui/widgets/panel.dart';
 import '../viewmodels/profile_view_model.dart';
 
 /// Who you are in Campus Innovate: your account, your numbers, your groups,
@@ -144,7 +146,7 @@ class ProfilePage extends GetView<ProfileViewModel> {
                       icon: Icons.lightbulb_outline,
                       title: listing.title,
                       subtitle:
-                          '${listing.memberIds.length} de ${listing.maxMembers} '
+                          '${listing.memberCount} de ${listing.maxMembers} '
                           'integrantes · ${listing.category}',
                       onTap: () => _openAndRefresh(
                         AppRoutes.detailOf(listing.id),
@@ -214,54 +216,67 @@ class _Identity extends StatelessWidget {
     final colors = theme.colorScheme;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [colors.primary, colors.secondary],
         ),
+        boxShadow: heroShadow(colors),
       ),
-      child: Row(
+      child: Stack(
         children: [
-          CircleAvatar(
-            radius: 30,
-            backgroundColor: colors.onPrimary,
-            child: Text(
-              initials,
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: colors.primary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    color: colors.onPrimary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                if (email.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    email,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onPrimary.withValues(alpha: 0.85),
-                    ),
-                  ),
-                ],
-              ],
-            ),
+          HeroDecor(color: colors.onPrimary),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: _content(theme, colors),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _content(ThemeData theme, ColorScheme colors) {
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: 30,
+          backgroundColor: colors.onPrimary,
+          child: Text(
+            initials,
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: colors.primary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: colors.onPrimary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (email.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  email,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onPrimary.withValues(alpha: 0.85),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -310,11 +325,7 @@ class _Stat extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colors.outlineVariant),
-      ),
+      decoration: Panel.decorationOf(context, radius: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

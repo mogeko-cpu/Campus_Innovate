@@ -8,8 +8,8 @@ credenciales ni dejan filas en la base de datos.
 | Capa | Carpeta | Qué cubre |
 |---|---|---|
 | Unitarias | `test/unit/` | `core` (sesión, preferencias, poller, tema, errores), todos los modelos, los repositorios y cada view model |
-| Widgets | `test/widget/` | cada widget reutilizable y cada una de las 15 pantallas, con sus estados vacío, de error y de carga |
-| Integración | `integration_test/` | flujos completos sobre la app real: entrar/registrarse/salir, la vida de un proyecto, una solicitud entre dos personas, un grupo con invitación y chat, la navegación con el cambio de tema, el tablero de tareas entre líder e integrante, y roles, estado y traspaso del liderazgo hasta terminar un proyecto |
+| Widgets | `test/widget/` | cada widget reutilizable y cada una de las pantallas, con sus estados vacío, de error y de carga |
+| Integración | `integration_test/` | flujos completos sobre la app real: entrar/registrarse/salir, la vida de un proyecto, una solicitud entre dos personas, un grupo con invitación y chat, la navegación con el cambio de tema, el tablero de tareas entre líder e integrante, roles, estado y traspaso del liderazgo hasta terminar un proyecto, y el espacio del equipo: una tarea cancelada, un enlace compartido y una mentoría aceptada por alguien de afuera |
 
 ## Cómo se corren
 
@@ -40,6 +40,12 @@ flutter test integration_test/auth_flow_test.dart -d flutter-tester
 - `test/support/test_bindings.dart`: el grafo de la app con ROBLE reemplazado
   por fuentes en memoria. Todo lo de arriba (rutas, bindings, view models,
   repositorios, pantallas) es el código real.
+- `test/support/in_memory_project_file_source.dart`, `in_memory_file_storage.dart` e
+  `in_memory_mentorship_source.dart`: los archivos del equipo, el bucket y las
+  solicitudes de mentoría, en memoria.
+- `test/support/fake_file_picker.dart` y `fake_link_opener.dart`: el selector de
+  archivos y el navegador del teléfono, que una prueba no puede manejar. El
+  primero "elige" lo que la prueba le pone; el segundo anota qué se pidió abrir.
 - `test/support/test_session.dart`: una sesión que puede cambiar de persona,
   para los flujos donde una publica o invita y otra responde.
 - `test/support/fake_auth_repository.dart`: login, registro y salida sin red,

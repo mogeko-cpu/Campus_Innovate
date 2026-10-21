@@ -39,13 +39,16 @@ abstract class IListingSource {
 
   Future<void> updateRequestStatus(String requestId, JoinRequestStatus status);
 
-  /// Adds [userId] to the members of [listingId] as a plain member.
+  /// Adds [userId] to the members of [listingId] with [role] — a plain member
+  /// unless said otherwise.
   ///
-  /// Idempotent: adding someone who is already a member is not an error.
+  /// Idempotent: adding someone who is already a member is not an error. A
+  /// mentor is added even to a full team, since a mentor takes no seat.
   Future<void> addMember({
     required String listingId,
     required String userId,
     String userName = '',
+    ListingRole role = ListingRole.member,
   });
 
   /// Takes [userId] off the team. Removing somebody who is not on it is not an

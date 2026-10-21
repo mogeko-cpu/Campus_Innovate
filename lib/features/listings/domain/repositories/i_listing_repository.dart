@@ -66,6 +66,14 @@ abstract class IListingRepository {
     required String actorId,
   });
 
+  /// Puts [userId] on the team as its mentor, for a mentorship somebody just
+  /// accepted. Takes no seat, so a full team can still have one.
+  Future<void> addMentor({
+    required String listingId,
+    required String userId,
+    required String userName,
+  });
+
   /// The leader hands the project to [newLeaderId] and stays as a member.
   Future<void> transferLeadership({
     required String listingId,

@@ -13,6 +13,9 @@ abstract class AppRoutes {
   /// A project's task board.
   static const listingTasks = '/listings/tasks/:id';
 
+  /// What a project's team shares: uploads and links.
+  static const listingFiles = '/listings/files/:id';
+
   /// Projects ordered by how the campus valued them.
   static const ranking = '/ranking';
 
@@ -34,6 +37,8 @@ abstract class AppRoutes {
   static String editOf(String id) => '/listings/edit/$id';
 
   static String tasksOf(String id) => '/listings/tasks/$id';
+
+  static String filesOf(String id) => '/listings/files/$id';
 
   static String groupOf(String id) => '/groups/detail/$id';
 

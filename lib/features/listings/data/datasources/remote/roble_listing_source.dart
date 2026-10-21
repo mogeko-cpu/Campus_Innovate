@@ -241,6 +241,7 @@ class RobleListingSource implements IListingSource {
     required String listingId,
     required String userId,
     String userName = '',
+    ListingRole role = ListingRole.member,
   }) async {
     final listing = await getListingById(listingId);
 
@@ -250,7 +251,7 @@ class RobleListingSource implements IListingSource {
 
     if (listing.memberIds.contains(userId)) return;
 
-    if (listing.isFull) {
+    if (role != ListingRole.mentor && listing.isFull) {
       throw const ListingException('El proyecto ya alcanzó su número máximo de integrantes.');
     }
 
@@ -264,7 +265,7 @@ class RobleListingSource implements IListingSource {
       listingId: listingId,
       userId: userId,
       userName: userName,
-      role: ListingRole.member,
+      role: role,
     );
   }
 

@@ -27,13 +27,17 @@ flutter run --dart-define=ROBLE_CONTRACT_ID=otro_contrato_ab12cd34
 
 ## Esquema
 
-Nueve tablas, creadas desde la Consola SQL de ROBLE. La columna `_id` la agrega
-ROBLE si falta, y siempre es `uuid`.
+Dieciséis tablas, creadas desde la Consola SQL de ROBLE. La columna `_id` la
+agrega ROBLE si falta, y siempre es `uuid`.
 
-Las tres primeras son las originales; las seis restantes se agregaron con
-[`sql/2026_grupos_y_valoraciones.sql`](sql/2026_grupos_y_valoraciones.sql), que
-es el archivo que hay que correr en la consola antes de abrir la app con estas
-funciones.
+Las tres primeras son las originales; las demás se agregaron con estos archivos,
+que se corren en la consola **en este orden** antes de abrir la app con esas
+funciones:
+
+1. [`sql/2026_grupos_y_valoraciones.sql`](sql/2026_grupos_y_valoraciones.sql)
+2. [`sql/2026_notificaciones_invitaciones_chat.sql`](sql/2026_notificaciones_invitaciones_chat.sql)
+3. [`sql/2026_gestion_de_proyectos.sql`](sql/2026_gestion_de_proyectos.sql) (ya aplicado)
+4. [`sql/2026_archivos_y_mentoria.sql`](sql/2026_archivos_y_mentoria.sql)
 
 ```sql
 CREATE TABLE listings (
@@ -323,6 +327,80 @@ CREATE TABLE listing_tasks (
 - **Quitar a alguien libera sus tareas** (quedan sin asignar) y eliminar el
   proyecto borra su tablero antes que el proyecto, por la misma razón que las
   valoraciones: sin cascadas, primero los hijos.
+- **Una tarea también puede quedar `cancelled`.** Es una columna del tablero
+  pero no un paso: a ella se llega desde el menú de la tarjeta ("Cancelar
+  tarea"), nunca con las flechas, y desde ahí se reabre a "Por hacer". No
+  necesitó cambios en la tabla: `status` ya era `text`.
+- **El avance cuenta las hechas sobre todas menos las canceladas** (y se muestra
+  en %). Una tarea cancelada es trabajo que el equipo decidió no hacer: sale de la
+  cuenta en vez de frenar el proyecto para siempre. La regla vive en
+  `TaskProgress` ([`listing_task.dart`](../lib/features/listings/domain/models/listing_task.dart)).
+- **El mentor no ocupa cupo.** `Listing.memberCount` (lo que dice "X de Y
+  integrantes" y lo que decide si el equipo está completo) cuenta a todos menos
+  a los mentores, así que un profesor puede acompañar a un equipo lleno.
+
+### Archivos del equipo y mentoría
+
+Dos tablas más, en
+[`sql/2026_archivos_y_mentoria.sql`](sql/2026_archivos_y_mentoria.sql), que se
+corre **después** del de gestión de proyectos. Las dos se leen por `listing_id`.
+
+```sql
+CREATE TABLE project_files (
+  _id UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+  listing_id text NOT NULL,
+  name text NOT NULL,
+  kind text NOT NULL,
+  storage_id text NOT NULL,
+  url text NOT NULL,
+  mime_type text NOT NULL,
+  size_bytes int4 NOT NULL,
+  uploader_id text NOT NULL,
+  uploader_name text NOT NULL,
+  created_at timestamp NOT NULL
+);
+
+CREATE TABLE mentorship_requests (
+  _id UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+  listing_id text NOT NULL UNIQUE,
+  listing_title text NOT NULL,
+  requester_id text NOT NULL,
+  requester_name text NOT NULL,
+  mentor_id text NOT NULL,
+  mentor_name text NOT NULL,
+  message text NOT NULL,
+  created_at timestamp NOT NULL
+);
+```
+
+- **`project_files` es el registro, no el archivo.** Los bytes de una subida
+  viven en el bucket (ver [Archivos](#archivos)); la fila dice a qué proyecto
+  pertenecen y quién los compartió, que es algo que el almacenamiento de ROBLE no
+  sabe. `kind` es `file` (los bytes están en el bucket y `storage_id` es su id) o
+  `link` (un enlace a Drive, GitHub, Figma; `url` es la dirección).
+- **Comparte el equipo entero** — líder, integrantes y mentor — y **borra solo
+  quien compartió**, que es la misma regla que ROBLE aplica a los bytes. Las
+  reglas viven en
+  [`project_file_repository.dart`](../lib/features/listings/data/repositories/project_file_repository.dart).
+- **Una solicitud de mentoría por proyecto, y el `UNIQUE (listing_id)` es quien lo
+  garantiza.** La pide el líder o un integrante (no un mentor), a alguien del
+  directorio que no esté en el equipo, mientras el proyecto no tenga mentor. La
+  fila existe solo mientras espera: **al aceptar**, la persona entra a
+  `listing_members` con `role = 'mentor'` — y desde ahí el resto del proyecto ya
+  sabe lo que un mentor puede hacer — y la fila se borra; al rechazar o cancelar
+  (quien la pidió o el líder) también se borra, como las solicitudes de grupo. Las
+  reglas, en
+  [`mentorship_repository.dart`](../lib/features/listings/data/repositories/mentorship_repository.dart).
+- **Aceptar son dos escrituras**, en el mismo orden que aceptar una solicitud de
+  unirse: primero entra el mentor, después se borra la solicitud. Si falla la
+  segunda, la solicitud sigue ahí y aceptarla otra vez termina el trabajo.
+- **Eliminar un proyecto** borra también sus archivos y su solicitud de mentoría,
+  antes que el proyecto. De los bytes solo se pueden borrar los que subió quien
+  elimina — ROBLE no deja borrar archivos ajenos —; los demás quedan en el bucket
+  sin ninguna ficha que los muestre.
+- **Quién recibe qué.** Mentoría solicitada: la persona a quien se le pide.
+  Aceptada: todo el equipo. Rechazada: quien la pidió. Las tres abren la
+  publicación del proyecto, que es donde se responde.
 
 ### Refresco automático
 
@@ -361,6 +439,55 @@ Esto es lo que explica la forma del código, y no es negociable desde la app:
   Detectarlo exige leer el mensaje de PostgreSQL, porque ROBLE lo reenvía sin
   código propio y el estado puede ser 400 o 500 — si cambia la redacción se
   pierde el mensaje amable, nunca la integridad de los datos.
+- **Subir un archivo** son dos cosas en dos servicios: los bytes al bucket y la
+  ficha en `project_files`. Primero los bytes: si fallan, no aparece nada. Si
+  falla la ficha, los bytes se borran de nuevo, para que no quede en el bucket algo
+  que ninguna pantalla muestra.
+- **Borrar un archivo** va al revés: primero los bytes, luego la ficha. Si se
+  corta a la mitad, el archivo sigue en la lista y borrarlo otra vez termina el
+  trabajo — un archivo que ya no está en el bucket cuenta como borrado.
+
+---
+
+## Archivos
+
+ROBLE no guarda los archivos: los guarda un **bucket compatible con S3**
+(Cloudflare R2, Amazon S3, Backblaze B2, MinIO) que el dueño del proyecto conecta
+en la consola, en **Configuración → Almacenamiento**. Sin bucket conectado, subir
+un archivo falla con el mensaje de ROBLE que lo dice, y la app lo muestra tal
+cual; los **enlaces** siguen funcionando porque no tocan el bucket.
+
+Los bytes nunca pasan por el servidor de ROBLE. Subir son tres llamadas, todas en
+[`RobleClient.uploadFile`](../lib/core/roble/roble_client.dart):
+
+| | Petición | Qué pasa |
+|---|---|---|
+| 1 | `POST /database/{contrato}/storage/objects` con `{fileName, mimeType, sizeBytes, folder}` | ROBLE registra el archivo y responde `{fileId, uploadUrl}`: una URL firmada del bucket. |
+| 2 | `PUT {uploadUrl}` con los bytes | Directo al bucket, **sin** el `Authorization` de la sesión: la URL ya trae su firma, y un bucket que recibe dos credenciales rechaza la petición. |
+| 3 | `POST /database/{contrato}/storage/objects/{fileId}/complete` | Confirma que llegaron. Si el paso 2 falló, el archivo queda `PENDING` y ROBLE nunca lo lista. |
+
+Para abrirlo, `GET …/storage/objects/{fileId}` devuelve `downloadUrl`, un enlace
+firmado que **vence en pocos minutos**; por eso nunca se guarda en la base y se
+pide en el momento de abrir el archivo. `DELETE …/storage/objects/{fileId}` lo
+borra, y solo funciona para quien lo subió.
+
+Las rutas no están en la documentación de ROBLE (que solo muestra los paquetes de
+Dart y JavaScript); salen del código del paquete
+[`roble`](https://pub.dev/packages/roble) de pub.dev, que hace exactamente estos
+tres pasos.
+
+Dos cosas para que funcione de verdad:
+
+- **CORS en el bucket, para la versión web.** El navegador hace el `PUT` y el
+  `GET` directo contra el bucket, así que este tiene que permitir esos métodos
+  desde la dirección de la app (`http://localhost:5123` hoy). Sin eso el navegador
+  bloquea la petición sin decir por qué, y la app muestra "No se pudo enviar el
+  archivo al almacenamiento del proyecto". En Android no aplica.
+- **El tope de 10 MB es de la app**, no del bucket: el archivo se lee entero en
+  memoria antes de subirlo, y para algo más grande lo sensato es un enlace.
+
+La carpeta en el bucket es `proyectos/{listing_id}`, para que lo de cada proyecto
+quede junto si alguien lo revisa desde la consola del proveedor.
 
 ---
 
@@ -483,9 +610,9 @@ En [`lib/core/roble/`](../lib/core/roble):
 
 | Archivo | Qué hace |
 |---|---|
-| `roble_config.dart` | Host, contrato, nombre del destino de regreso del inicio social y nombres de las nueve tablas. Un `--dart-define` los cambia. |
+| `roble_config.dart` | Host, contrato, nombre del destino de regreso del inicio social y nombres de las tablas. Un `--dart-define` los cambia. |
 | `roble_duplicate.dart` | `isDuplicateRow()`: si el error de ROBLE es una violación de `UNIQUE`. Tres fuentes dependen de la misma lectura del mensaje de PostgreSQL. |
-| `roble_client.dart` | Transporte: arma la petición, pone el `Bearer`, traduce cada código de estado y **renueva el token una sola vez** ante un 401 antes de reintentar. Sin imports de Flutter, para que `tool/seed_roble.dart` lo pueda usar. |
+| `roble_client.dart` | Transporte: arma la petición, pone el `Bearer`, traduce cada código de estado y **renueva el token una sola vez** ante un 401 antes de reintentar. También sube, firma y borra archivos del bucket (ver [Archivos](#archivos)). Sin imports de Flutter, para que `tool/seed_roble.dart` lo pueda usar. |
 | `roble_session.dart` | Tokens y usuario en memoria, espejados en almacenamiento cifrado. Borra de paso las llaves que dejó la plantilla, que guardaba contraseñas en texto plano. |
 | `roble_user.dart` | La cuenta según `GET /me`. `userId` gana sobre `id`: es el valor que va en `creator_id`. |
 | `roble_exception.dart` | Una excepción por falla, con mensaje en español listo para mostrar. |

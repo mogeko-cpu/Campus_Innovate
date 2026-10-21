@@ -231,6 +231,7 @@ class InMemoryListingSource implements IListingSource {
     required String listingId,
     required String userId,
     String userName = '',
+    ListingRole role = ListingRole.member,
   }) async {
     final index = _listings.indexWhere((listing) => listing.id == listingId);
 
@@ -242,7 +243,7 @@ class InMemoryListingSource implements IListingSource {
 
     if (listing.memberIds.contains(userId)) return;
 
-    if (listing.isFull) {
+    if (role != ListingRole.mentor && listing.isFull) {
       throw const ListingException(
         'El proyecto ya alcanzó su número máximo de integrantes.',
       );
@@ -255,7 +256,7 @@ class InMemoryListingSource implements IListingSource {
         ListingMember(
           userId: userId,
           userName: userName,
-          role: ListingRole.member,
+          role: role,
         ),
       ],
     );

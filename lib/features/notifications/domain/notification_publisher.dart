@@ -241,6 +241,63 @@ class NotificationPublisher {
     );
   }
 
+  /// A team asked somebody to mentor its project: tells that person.
+  Future<void> mentorshipRequested({
+    required String listingId,
+    required String listingTitle,
+    required String requesterId,
+    required String requesterName,
+    required String mentorId,
+  }) {
+    return _send(
+      recipientIds: [mentorId],
+      except: requesterId,
+      build: (id) => AppNotification.draft(
+        recipientId: id,
+        type: NotificationType.mentorshipRequested,
+        title: 'Te pidieron ser mentor',
+        body: '$requesterName quiere que acompañes el proyecto '
+            '"$listingTitle".',
+        target: NotificationTarget.listing,
+        targetId: listingId,
+      ),
+    );
+  }
+
+  /// The person asked to mentor answered.
+  ///
+  /// A yes is news for the whole team — somebody new sees their board — so
+  /// [recipientIds] is the team. A no only matters to whoever asked, who is the
+  /// one to look for somebody else.
+  Future<void> mentorshipResolved({
+    required bool accepted,
+    required String listingId,
+    required String listingTitle,
+    required String mentorId,
+    required String mentorName,
+    required Iterable<String> recipientIds,
+  }) {
+    return _send(
+      recipientIds: recipientIds,
+      except: mentorId,
+      build: (id) => AppNotification.draft(
+        recipientId: id,
+        type: accepted
+            ? NotificationType.mentorshipAccepted
+            : NotificationType.mentorshipRejected,
+        title: accepted
+            ? 'Su proyecto ya tiene mentor'
+            : 'Solicitud de mentoría rechazada',
+        body: accepted
+            ? '$mentorName aceptó acompañar "$listingTitle".'
+            : '$mentorName no puede acompañar "$listingTitle" por ahora. '
+                'Pueden pedírsela a otra persona.',
+        target: NotificationTarget.listing,
+        targetId: listingId,
+      ),
+    );
+  }
+
   Future<void> _send({
     required Iterable<String> recipientIds,
     required String except,

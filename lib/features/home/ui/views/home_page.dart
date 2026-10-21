@@ -3,11 +3,14 @@ import 'package:get/get.dart';
 
 import '../../../../routes/app_routes.dart';
 import '../../../auth/ui/viewmodels/authentication_controller.dart';
+import '../../../listings/domain/models/mentorship_request.dart';
 import '../../../listings/ui/widgets/listing_card.dart';
 import '../../../notifications/ui/viewmodels/notification_center.dart';
 import '../../../notifications/ui/widgets/notification_bell.dart';
 import '../../../shell/ui/widgets/app_bottom_nav.dart';
 import '../../../shell/ui/widgets/empty_state.dart';
+import '../../../shell/ui/widgets/hero_decor.dart';
+import '../../../shell/ui/widgets/panel.dart';
 import '../viewmodels/home_view_model.dart';
 import '../widgets/action_card.dart';
 
@@ -112,6 +115,18 @@ class HomePage extends GetView<HomeViewModel> {
                         AppRoutes.detailOf(listing.id),
                       ),
                     ),
+                if (controller.mentorshipRequests.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  const _SectionHeader(title: 'Te piden ser mentor'),
+                  const SizedBox(height: 14),
+                  for (final request in controller.mentorshipRequests)
+                    _MentorshipRequestTile(
+                      request: request,
+                      onTap: () => _openAndRefresh(
+                        AppRoutes.detailOf(request.listingId),
+                      ),
+                    ),
+                ],
                 const SizedBox(height: 24),
                 const _SectionHeader(title: 'Mis proyectos'),
                 const SizedBox(height: 14),
@@ -152,57 +167,138 @@ class _Greeting extends StatelessWidget {
     final colors = theme.colorScheme;
 
     return Container(
-      padding: const EdgeInsets.all(22),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [colors.primary, colors.secondary],
         ),
+        boxShadow: heroShadow(colors),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Row(
-            children: [
-              Icon(Icons.school_outlined, color: colors.onPrimary, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'CAMPUS INNOVATE',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: colors.onPrimary,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.6,
-                  ),
-                ),
-              ),
-              NotificationBell(color: colors.onPrimary),
-              IconButton(
-                onPressed: onLogOut,
-                tooltip: 'Cerrar sesión',
-                visualDensity: VisualDensity.compact,
-                icon: Icon(Icons.logout, color: colors.onPrimary, size: 20),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Text(
-            'Hola, $name',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: colors.onPrimary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Encuentra un equipo o publica tu propia idea.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: colors.onPrimary.withValues(alpha: 0.85),
-            ),
+          HeroDecor(color: colors.onPrimary),
+          Padding(
+            padding: const EdgeInsets.all(22),
+            child: _content(theme, colors),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _content(ThemeData theme, ColorScheme colors) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.school_outlined, color: colors.onPrimary, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'CAMPUS INNOVATE',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: colors.onPrimary,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.6,
+                ),
+              ),
+            ),
+            NotificationBell(color: colors.onPrimary),
+            IconButton(
+              onPressed: onLogOut,
+              tooltip: 'Cerrar sesión',
+              visualDensity: VisualDensity.compact,
+              icon: Icon(Icons.logout, color: colors.onPrimary, size: 20),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        Text(
+          'Hola, $name',
+          style: theme.textTheme.headlineSmall?.copyWith(
+            color: colors.onPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Encuentra un equipo o publica tu propia idea.',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: colors.onPrimary.withValues(alpha: 0.85),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A team asking this person to mentor its project, opening the project where
+/// the answer is given.
+class _MentorshipRequestTile extends StatelessWidget {
+  final MentorshipRequest request;
+  final VoidCallback onTap;
+
+  const _MentorshipRequestTile({required this.request, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: DecoratedBox(
+        decoration: Panel.decorationOf(context, radius: 16),
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: colors.tertiary.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.school_outlined, color: colors.tertiary),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          request.listingTitle,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${request.requesterName} te pidió acompañar al '
+                          'equipo',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, color: colors.onSurfaceVariant),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

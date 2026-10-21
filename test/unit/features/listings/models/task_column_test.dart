@@ -8,13 +8,25 @@ void main() {
       TaskColumn.todo,
       TaskColumn.doing,
       TaskColumn.done,
+      TaskColumn.cancelled,
     ]);
+  });
+
+  test('el flujo de las flechas deja por fuera a Cancelado', () {
+    expect(TaskColumn.flow, [
+      TaskColumn.todo,
+      TaskColumn.doing,
+      TaskColumn.done,
+    ]);
+    expect(TaskColumn.cancelled.isCancelled, isTrue);
+    expect(TaskColumn.done.isCancelled, isFalse);
   });
 
   test('cada columna tiene su etiqueta en español', () {
     expect(TaskColumn.todo.label, 'Por hacer');
     expect(TaskColumn.doing.label, 'En progreso');
     expect(TaskColumn.done.label, 'Hecho');
+    expect(TaskColumn.cancelled.label, 'Cancelado');
   });
 
   group('previous y next', () {
@@ -31,6 +43,12 @@ void main() {
     test('la última columna no tiene siguiente', () {
       expect(TaskColumn.done.previous, TaskColumn.doing);
       expect(TaskColumn.done.next, isNull);
+    });
+
+    test('a Cancelado no se llega ni se sale con las flechas', () {
+      expect(TaskColumn.cancelled.previous, isNull);
+      expect(TaskColumn.cancelled.next, isNull);
+      expect(TaskColumn.done.next, isNot(TaskColumn.cancelled));
     });
 
     test('avanzar y retroceder una vez vuelve a la misma columna', () {

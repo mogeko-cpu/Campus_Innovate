@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -31,11 +32,16 @@ class RobleClient {
     this.baseUrl = RobleConfig.baseUrl,
     this.contractId = RobleConfig.contractId,
     this.timeout = const Duration(seconds: 20),
+    this.uploadTimeout = const Duration(minutes: 2),
   }) : _http = httpClient ?? http.Client();
 
   /// A campus network on a bad day is slow, not dead; 20 s is long enough to
   /// ride that out and short enough that the UI is not stuck forever.
   final Duration timeout;
+
+  /// The bytes of a file are the one request that is big on purpose: several
+  /// megabytes over the campus wifi do not fit in [timeout].
+  final Duration uploadTimeout;
 
   /// The tokens this client sends and keeps up to date.
   final RobleSession session;
@@ -415,6 +421,136 @@ class RobleClient {
       },
     );
   }
+
+  // ------------------------------------------------------------- storage
+
+  /// Stores [bytes] in the project's bucket and returns the id ROBLE filed them
+  /// under.
+  ///
+  /// The bytes never pass through ROBLE: it signs an upload URL, the file goes
+  /// straight to the bucket with a `PUT`, and a last call confirms it arrived.
+  /// If the `PUT` fails, ROBLE keeps the file as `PENDING` and never lists it, so
+  /// nothing ends up pointing at bytes that did not land.
+  ///
+  /// The project needs a bucket connected in the console (**Configuración →
+  /// Almacenamiento**); without one, the first call fails with ROBLE's own
+  /// message saying so, which is passed through to the user as is.
+  Future<String> uploadFile({
+    required String fileName,
+    required Uint8List bytes,
+    String? mimeType,
+    String? folder,
+  }) async {
+    final payload = await _send(
+      method: 'POST',
+      uri: _dataUri('storage/objects'),
+      body: {
+        'fileName': fileName,
+        'mimeType': ?mimeType,
+        'sizeBytes': bytes.lengthInBytes,
+        'folder': ?folder,
+      },
+    );
+
+    final json = _asMap(payload);
+    final fileId = json['fileId']?.toString() ?? '';
+    final uploadUrl = json['uploadUrl']?.toString() ?? '';
+
+    if (fileId.isEmpty || uploadUrl.isEmpty) {
+      throw const RobleServerException(
+        'ROBLE no dijo a dónde subir el archivo.',
+        201,
+      );
+    }
+
+    await _putToBucket(Uri.parse(uploadUrl), bytes, mimeType: mimeType);
+
+    await _send(
+      method: 'POST',
+      uri: _dataUri('storage/objects/${Uri.encodeComponent(fileId)}/complete'),
+    );
+
+    return fileId;
+  }
+
+  /// A signed link to download [fileId].
+  ///
+  /// It expires within minutes, by design — a permanent link would mean an open
+  /// bucket — so it is asked for at the moment of opening the file and never
+  /// stored.
+  Future<String> fileDownloadUrl(String fileId) async {
+    final payload = await _send(
+      method: 'GET',
+      uri: _dataUri('storage/objects/${Uri.encodeComponent(fileId)}'),
+    );
+
+    final url = _asMap(payload)['downloadUrl']?.toString() ?? '';
+
+    if (url.isEmpty) {
+      throw const RobleServerException(
+        'ROBLE no devolvió el enlace de descarga del archivo.',
+        200,
+      );
+    }
+
+    return url;
+  }
+
+  /// Removes [fileId] from the bucket. ROBLE only lets whoever uploaded a file
+  /// delete it; anybody else gets a 403.
+  Future<void> deleteFile(String fileId) async {
+    await _send(
+      method: 'DELETE',
+      uri: _dataUri('storage/objects/${Uri.encodeComponent(fileId)}'),
+    );
+  }
+
+  /// The `PUT` of the bytes to the bucket, outside ROBLE.
+  ///
+  /// No `Authorization` header: the URL already carries its own signature, and a
+  /// bucket that receives two ways of authenticating rejects the request.
+  Future<void> _putToBucket(
+    Uri uploadUrl,
+    Uint8List bytes, {
+    String? mimeType,
+  }) async {
+    final request = http.Request('PUT', uploadUrl)..bodyBytes = bytes;
+    if (mimeType != null) request.headers['Content-Type'] = mimeType;
+
+    final http.Response response;
+
+    try {
+      final streamed = await _http.send(request).timeout(uploadTimeout);
+      response = await http.Response.fromStream(streamed).timeout(
+        uploadTimeout,
+      );
+    } on TimeoutException {
+      throw const RobleTimeoutException(
+        'El archivo tardó demasiado en subir. Intenta con una conexión más '
+        'estable o con un archivo más liviano.',
+      );
+    } on SocketException {
+      throw const RobleNetworkException(_bucketUnreachable);
+    } on http.ClientException {
+      // On the web this is also what a bucket without CORS for the app's origin
+      // looks like: the browser blocks the request and says nothing else.
+      throw const RobleNetworkException(_bucketUnreachable);
+    } on HandshakeException {
+      throw const RobleNetworkException(_bucketUnreachable);
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw RobleServerException(
+        'El almacenamiento del proyecto rechazó el archivo '
+        '(${response.statusCode}).',
+        response.statusCode,
+      );
+    }
+  }
+
+  static const _bucketUnreachable =
+      'No se pudo enviar el archivo al almacenamiento del proyecto. Revisa tu '
+      'conexión e intenta de nuevo.';
 
   void close() => _http.close();
 
